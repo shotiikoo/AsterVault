@@ -186,7 +186,7 @@
     }
     .nav-item { flex: none; flex-direction: row; justify-content: flex-start; gap: 11px; padding: 11px 14px; border-radius: 11px; }
     .nav-item span { font-size: 13px; }
-    .nav-indicator { left: 8px; right: 8px; width: auto; top: calc(var(--nav-idx, 0) * 25% + 8px); bottom: auto; height: calc(25% - 16px); transition: top .38s cubic-bezier(.22,1,.36,1); }
+    .nav-indicator { left: 8px; right: 8px; width: auto; top: var(--nav-top-px, 8px); bottom: auto; height: var(--nav-height-px, 44px); transition: top .38s cubic-bezier(.22,1,.36,1); }
     .body { padding: 30px 40px 40px; overflow-y: auto; }
     .body > * { max-width: 760px; margin-left: auto; margin-right: auto; }
     .auth-shell {
@@ -279,6 +279,19 @@
   function seededRandom(seed) { let s = seed || 1; return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; }; }
   const freshAccount = (name, email, address) => ({ name, email, address, assets: { btc: 0, eth: 0, usdc: 0 }, activity: [] });
 
+  const SEND_ELIGIBILITY_DAYS = 45;
+  function sendEligibility(account) {
+    const created = account?.createdAt || Date.now();
+    const ageMs = Date.now() - created;
+    const ageDays = Math.floor(ageMs / 86400000);
+    const availableAt = created + SEND_ELIGIBILITY_DAYS * 86400000;
+    return {
+      eligible: ageDays >= SEND_ELIGIBILITY_DAYS,
+      daysRemaining: Math.max(0, SEND_ELIGIBILITY_DAYS - ageDays),
+      availableDate: new Date(availableAt).toLocaleDateString("en-US", { dateStyle: "long" }),
+    };
+  }
+
   function sparkPath(seedStr, trend, w, h) {
     let s = 0; for (let i = 0; i < seedStr.length; i++) s = (s * 31 + seedStr.charCodeAt(i)) >>> 0;
     const rand = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
@@ -348,7 +361,7 @@
     tab: "dashboard", balanceVisible: true, toast: null,
     sendStep: "form", sendAssetId: "btc", sendAddress: "", sendAmount: "",
     receiveAssetId: "btc", receiveCopied: false,
-    activityFilter: "all", txDetailId: null,
+    activityFilter: "all", txDetailId: null, sendBlocked: false,
   };
   const NAV = [
     { id: "dashboard", label: "Wallet", icon: walletIcon },
@@ -394,6 +407,7 @@
       ...freshAccount(name?.trim() || cleanEmail, cleanEmail, "0xF3a92C1B7E4D5A6F8091C2D3E4F5A6B7C8D9E0F1"),
       passwordHash,
       passwordSalt: salt,
+      createdAt: Date.now(),
     };
     saveDB();
     completeSignIn(id, cleanEmail, name?.trim() || cleanEmail);
@@ -536,9 +550,24 @@
         </div>`}
         ${ui.toast ? `<div class="toast show">${ui.toast}</div>` : ""}
         ${ui.txDetailId ? renderTxModal() : ""}
+        ${ui.sendBlocked ? renderSendBlockedModal() : ""}
       </div>
     `;
     wire();
+    positionNavIndicator();
+  }
+
+  // The desktop sidebar's nav column can be much taller than the four
+  // nav buttons themselves (it stretches to match the dashboard content).
+  // Percentage-based positioning broke because of that height mismatch —
+  // so instead we measure the actual active button and place the
+  // highlight exactly there, in real pixels.
+  function positionNavIndicator() {
+    const indicator = root.querySelector(".nav-indicator");
+    const activeItem = root.querySelector(".nav-item.active");
+    if (!indicator || !activeItem) return;
+    indicator.style.setProperty("--nav-top-px", activeItem.offsetTop + "px");
+    indicator.style.setProperty("--nav-height-px", activeItem.offsetHeight + "px");
   }
 
   function renderApp() {
@@ -633,6 +662,28 @@
         <div class="tx-right">
           <div class="tx-amt" style="color:${isSend ? "var(--negative)" : "var(--jade)"};">${isSend ? "−" : "+"}${fmtAmt(t.amount)}</div>
           <div class="tx-time">${t.status === "pending" ? "Confirming…" : relTime(t.ts)}</div>
+        </div>
+      </div>`;
+  }
+
+  function renderSendBlockedModal() {
+    const a = acc();
+    const elig = sendEligibility(a);
+    return `
+      <div class="modal-backdrop" data-act="close-send-blocked">
+        <div class="modal-sheet" onclick="event.stopPropagation()">
+          <div style="display:flex; flex-direction:column; align-items:center; text-align:center; padding:8px 4px 4px;">
+            <div style="width:52px; height:52px; border-radius:50%; background:#E2878715; border:1px solid #E2878744; display:flex; align-items:center; justify-content:center; margin-bottom:16px;">
+              <span style="color:var(--negative);">${ICONS.lock}</span>
+            </div>
+            <div style="font-family:var(--font-display); font-size:19px; margin-bottom:8px;">Transfers not yet available</div>
+            <p style="font-size:13px; color:var(--text-2); line-height:1.55; margin:0 0 20px;">
+              New accounts have a ${SEND_ELIGIBILITY_DAYS}-day waiting period before sending is enabled. Your account
+              will be eligible to send starting <strong style="color:var(--text);">${elig.availableDate}</strong>
+              (${elig.daysRemaining} day${elig.daysRemaining === 1 ? "" : "s"} remaining).
+            </p>
+            <button class="wv-btn wv-accent" data-act="close-send-blocked" style="width:100%; padding:12px 0; border-radius:12px; border:none; background:var(--aurora); color:#0A0A12; font-size:13.5px; font-weight:600;">Got it</button>
+          </div>
         </div>
       </div>`;
   }
@@ -767,8 +818,7 @@
         <label class="field-label">Network</label>
         <div style="padding:12px 13px; border-radius:12px; border:1px solid var(--azure); background:#6E9CF51A; color:var(--violet); font-size:13px; text-align:center; font-weight:500;">Aster Network — Connected</div>
       </div>
-      <button class="wv-btn" data-act="reset-balances" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; padding:12px 0; border-radius:12px; border:1px solid var(--border); background:transparent; color:var(--text); font-size:13.5px; margin-top:6px;">${ICONS.reset} Reset balances</button>
-      <button class="wv-btn" data-act="sign-out" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; padding:12px 0; border-radius:12px; border:1px solid var(--border); background:transparent; color:var(--negative); font-size:13.5px; margin-top:10px;">Sign out</button>
+      <button class="wv-btn" data-act="sign-out" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; padding:12px 0; border-radius:12px; border:1px solid var(--border); background:transparent; color:var(--negative); font-size:13.5px; margin-top:6px;">Sign out</button>
       <p style="font-size:11.5px; color:var(--text-3); line-height:1.6; margin-top:22px;">Your balances are securely stored and sync automatically across your devices.</p>
     `;
   }
@@ -832,14 +882,14 @@
         else if (act === "close-tx") { ui.txDetailId = null; render(); }
         else if (act === "send-asset") { ui.sendAssetId = el.dataset.id; render(); }
         else if (act === "send-max") { const a = assetsList().find((x) => x.id === ui.sendAssetId); ui.sendAmount = String(a.amount); render(); }
-        else if (act === "send-continue") { const a = assetsList().find((x) => x.id === ui.sendAssetId); const n = parseFloat(ui.sendAmount) || 0; if (ui.sendAddress.trim().length > 6 && n > 0 && n <= a.amount) { ui.sendStep = "review"; render(); } }
+        else if (act === "send-continue") { const a = assetsList().find((x) => x.id === ui.sendAssetId); const n = parseFloat(ui.sendAmount) || 0; if (ui.sendAddress.trim().length > 6 && n > 0 && n <= a.amount) { if (sendEligibility(acc()).eligible) { ui.sendStep = "review"; } else { ui.sendBlocked = true; } render(); } }
+        else if (act === "close-send-blocked") { ui.sendBlocked = false; render(); }
         else if (act === "send-step") { ui.sendStep = el.dataset.step; render(); }
         else if (act === "send-confirm") { const n = parseFloat(ui.sendAmount) || 0; sendFunds(ui.sendAssetId, n, ui.sendAddress); ui.sendStep = "done"; render(); }
         else if (act === "send-done") { ui.sendStep = "form"; ui.sendAddress = ""; ui.sendAmount = ""; ui.tab = "dashboard"; render(); }
         else if (act === "receive-asset") { ui.receiveAssetId = el.dataset.id; render(); }
         else if (act === "copy-address") { navigator.clipboard?.writeText(acc()?.address || "").catch(() => {}); ui.receiveCopied = true; render(); showToast("Address copied"); setTimeout(() => { ui.receiveCopied = false; }, 1600); }
         else if (act === "activity-filter") { ui.activityFilter = el.dataset.id; render(); }
-        else if (act === "reset-balances") { resetAccount(); render(); }
         else if (act === "sign-out") { session = null; ui.tab = "dashboard"; render(); }
         else if (act === "auth-mode") { ui.authMode = el.dataset.mode; ui.authStep = "form"; ui.error = ""; render(); }
         else if (act === "toggle-pass") { ui.showPass = !ui.showPass; render(); }
@@ -850,8 +900,6 @@
         else if (act === "enter-vault") { registerAndSignIn(ui.authEmail, ui.authName, ui.authPassword); }
       });
     });
-    const backdrop = root.querySelector(".modal-backdrop");
-    if (backdrop) backdrop.addEventListener("click", () => { ui.txDetailId = null; render(); });
 
     const liveBind = (id, setter) => { const el = document.getElementById(id); if (el) el.addEventListener("input", () => setter(el.value)); };
     liveBind("auth-name", (v) => (ui.authName = v));
