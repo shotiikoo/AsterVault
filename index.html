@@ -390,7 +390,7 @@
   let session = null; // { id, email, name }
   let ui = {
     authMode: "login", authStep: "form", showPass: false, error: "",
-    authName: "", authEmail: "", authPassword: "", authConfirm: "",
+    authName: "", authEmail: "", authPassword: "", authConfirm: "", authRefCode: incomingRefCode,
     seedRevealed: false, seedSaved: false, copied: false,
     tab: "dashboard", balanceVisible: true, toast: null,
     sendStep: "form", sendAssetId: "btc", sendAddress: "", sendAmount: "",
@@ -421,7 +421,7 @@
   /* ---------------- actions ---------------- */
   function completeSignIn(id, email, name) {
     session = { id, email, name };
-    ui.tab = "dashboard"; ui.authStep = "form"; ui.authName = ""; ui.authEmail = ""; ui.authPassword = ""; ui.authConfirm = "";
+    ui.tab = "dashboard"; ui.authStep = "form"; ui.authName = ""; ui.authEmail = ""; ui.authPassword = ""; ui.authConfirm = ""; ui.authRefCode = "";
     ui.seedRevealed = false; ui.seedSaved = false; ui.copied = false;
     render();
   }
@@ -446,12 +446,13 @@
       passwordSalt: salt,
       createdAt: Date.now(),
     };
-    if (incomingRefCode) {
-      const referrer = Object.values(db.accounts).find((a) => a.referralCode === incomingRefCode && a !== db.accounts[id]);
+    const usedRefCode = (ui.authRefCode || "").trim().toUpperCase() || incomingRefCode;
+    if (usedRefCode) {
+      const referrer = Object.values(db.accounts).find((a) => a.referralCode === usedRefCode && a !== db.accounts[id]);
       if (referrer) {
         referrer.referrals = referrer.referrals || [];
         referrer.referrals.push({ name: name?.trim() || cleanEmail, ts: Date.now() });
-        db.accounts[id].referredBy = { name: referrer.name, code: incomingRefCode };
+        db.accounts[id].referredBy = { name: referrer.name, code: usedRefCode };
       }
     }
     saveDB();
@@ -1034,6 +1035,7 @@
           <div><label class="field-label">Email</label><input id="auth-email" class="field-input" type="email" placeholder="you@example.com" value="${ui.authEmail.replace(/"/g, "&quot;")}" /></div>
           <div><label class="field-label">Password</label><div style="position:relative;"><input id="auth-password" class="field-input" style="padding-right:42px;" type="${ui.showPass ? "text" : "password"}" placeholder="••••••••" value="${ui.authPassword.replace(/"/g, "&quot;")}" /><button class="wv-btn" data-act="toggle-pass" style="position:absolute; right:6px; top:6px; background:none; border:none; color:var(--text-3); padding:6px;">${ui.showPass ? ICONS.eyeOff : ICONS.eye}</button></div></div>
           ${ui.authMode === "register" ? `<div><label class="field-label">Confirm password</label><input id="auth-confirm" class="field-input" type="${ui.showPass ? "text" : "password"}" placeholder="••••••••" value="${ui.authConfirm.replace(/"/g, "&quot;")}" /></div>` : ""}
+          ${ui.authMode === "register" ? `<div><label class="field-label">Referral code <span style="color:var(--text-3); font-weight:400;">(optional)</span></label><input id="auth-refcode" class="field-input" style="text-transform:uppercase; letter-spacing:1px;" placeholder="e.g. AB12CD3" value="${ui.authRefCode.replace(/"/g, "&quot;")}" /></div>` : ""}
         </div>
         ${ui.error ? `<div style="font-size:12px; color:var(--negative); margin-top:12px;">${ui.error}</div>` : ""}
         <button class="wv-btn wv-accent" data-act="auth-submit" style="width:100%; margin-top:22px; padding:14px 0; border-radius:12px; border:none; background:var(--aurora); color:#0A0A12; font-size:14px; font-weight:600; box-shadow:0 14px 30px -12px #6E9CF599;">${ui.authMode === "login" ? "Log in" : "Continue"}</button>
@@ -1086,6 +1088,7 @@
     liveBind("auth-email", (v) => (ui.authEmail = v));
     liveBind("auth-password", (v) => (ui.authPassword = v));
     liveBind("auth-confirm", (v) => (ui.authConfirm = v));
+    liveBind("auth-refcode", (v) => (ui.authRefCode = v.toUpperCase()));
     liveBind("send-address", (v) => (ui.sendAddress = v));
     liveBind("send-amount", (v) => (ui.sendAmount = v.replace(/[^0-9.]/g, "")));
   }
