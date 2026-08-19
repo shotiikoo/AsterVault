@@ -117,12 +117,7 @@
     { id: "eth", name: "Ethereum", symbol: "ETH", price: 3510, color: "#8FA8FF" },
     { id: "usdc", name: "USD Coin", symbol: "USDC", price: 1, color: "#4FB2F0" },
   ];
-  const SEED_IDS = ["alice", "bob", "priya"];
-  const DEFAULT_ACCOUNTS = () => ({
-    alice: { name: "Alice Whitfield", email: "alice.w@example.com", address: "0x9C41A8B2E5D6F7A0819203D4E5F6A7B8C9D0E1F2", assets: { btc: 0.031, eth: 0.8, usdc: 500 }, activity: [] },
-    bob: { name: "Bob Nakamura", email: "bob.nakamura@example.com", address: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh", assets: { btc: 0, eth: 2.1, usdc: 0 }, activity: [] },
-    priya: { name: "Priya Shah", email: "priya.shah@example.com", address: "0x1A2B3C4D5E6F7081920A1B2C3D4E5F6A7B8C9D0E", assets: { btc: 0.5, eth: 0, usdc: 1200 }, activity: [] },
-  });
+  const DEFAULT_ACCOUNTS = () => ({}); // no fake accounts — only real registrations show up here
 
   const SOURCES = {
     btc: ["Coinbase", "Binance", "External wallet"],
@@ -136,6 +131,7 @@
     check: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
     plus: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>',
     external: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>',
+    trash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
   };
 
   const fmtUSD = (n) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
@@ -226,29 +222,29 @@
         <header>
           <div class="brand">
             <div class="mark">AV</div>
-            <div><h1>Aster Vault — Admin Console</h1><p>${ids.length} test accounts · syncs with the wallet app on this device</p></div>
+            <div><h1>Aster Vault — Admin Console</h1><p>${ids.length} registered account${ids.length === 1 ? "" : "s"} · syncs with the wallet app on this device</p></div>
           </div>
           <div style="display:flex; gap:10px;">
             <button class="btn btn-sm" id="refresh-btn">${ICONS.reset} Refresh</button>
-            <button class="btn btn-sm btn-danger" id="reset-btn">${ICONS.reset} Reset all</button>
+            <button class="btn btn-sm btn-danger" id="reset-btn">${ICONS.trash} Delete all accounts</button>
           </div>
         </header>
 
         <div class="stats">
-          <div class="stat"><div class="label">Test accounts</div><div class="value">${ids.length}</div></div>
+          <div class="stat"><div class="label">Accounts</div><div class="value">${ids.length}</div></div>
           <div class="stat"><div class="label">Combined value</div><div class="value">${fmtUSD(totalAcrossAll)}</div></div>
           <div class="stat"><div class="label">BTC price</div><div class="value">${fmtUSD(ASSET_DEFS[0].price)}</div></div>
           <div class="stat"><div class="label">ETH price</div><div class="value">${fmtUSD(ASSET_DEFS[1].price)}</div></div>
         </div>
 
         <div class="section-label">Accounts</div>
-        <div class="accounts">${ids.map((id) => renderAccount(id, accounts[id])).join("")}</div>
+        ${ids.length === 0 ? '<div class="activity-empty" style="padding:16px 2px;">No accounts yet — they\'ll show up here as soon as someone registers in the wallet app.</div>' : `<div class="accounts">${ids.map((id) => renderAccount(id, accounts[id])).join("")}</div>`}
 
         <p class="footnote">
-          Balances here are stored privately in your browser (not visible to other people) and are read by the
-          Aster Vault wallet app on this same device. Saving an edit appends a realistic-looking activity entry —
-          a deposit shows a plausible source (Coinbase, an external wallet, etc.) rather than "Admin" — that shows
-          up in that account's Recent activity within a few seconds.
+          These are real accounts people registered in the wallet app — nothing here is fake test data. Balances are
+          stored on the server (not in your browser) and are read live by the wallet app. Saving an edit appends a
+          realistic-looking activity entry — a deposit shows a plausible source (Coinbase, an external wallet, etc.)
+          rather than "Admin" — that shows up in that account's Recent activity within a few seconds.
         </p>
       </div>
       <div class="toast" id="toast"></div>
@@ -261,25 +257,24 @@
       showToast("Refreshed");
     });
     document.getElementById("reset-btn").addEventListener("click", () => {
-      if (!confirm("Reset all test accounts back to their starting balances? This clears all activity too.")) return;
-      db = { accounts: DEFAULT_ACCOUNTS() };
+      if (!confirm(`Permanently delete all ${ids.length} account(s)? This cannot be undone.`)) return;
+      db = { accounts: {} };
       openId = null;
       saveDB();
       render();
-      showToast("Test data reset");
+      showToast("All accounts deleted");
     });
   }
 
   function renderAccount(id, acc) {
     const total = assetTotal(acc.assets);
     const open = openId === id;
-    const isRegistered = !SEED_IDS.includes(id);
     return `
       <div class="account${open ? " open" : ""}" data-id="${id}">
         <div class="account-head" data-toggle="${id}">
           <div class="avatar">${initials(acc.name)}</div>
           <div>
-            <div class="account-name">${acc.name} ${isRegistered ? `<span class="registered-tag"><span class="dot"></span>REGISTERED</span>` : ""}</div>
+            <div class="account-name">${acc.name}</div>
             <div class="account-email">${acc.email}</div>
           </div>
           <div class="account-value">${fmtUSD(total)}<div class="sub">${truncate(acc.address)}</div></div>
@@ -298,6 +293,7 @@
           <div class="row-actions">
             <button class="btn btn-accent btn-sm" data-save="${id}">${ICONS.check} Save balances</button>
             <button class="btn btn-sm" data-topup="${id}">${ICONS.plus} Quick top-up (+0.01 BTC)</button>
+            <button class="btn btn-sm btn-danger" data-delete="${id}">${ICONS.trash} Delete account</button>
           </div>
           <div class="activity-title">Recent activity</div>
           ${(acc.activity || []).length === 0 ? '<div class="activity-empty">No activity yet — save a balance change to create an entry.</div>' :
@@ -371,6 +367,20 @@
         db.accounts[id] = acc;
         saveDB();
         showToast(`Topped up ${acc.name} +0.01 BTC`);
+        render();
+      });
+    }
+
+    const deleteBtn = document.querySelector(`[data-delete="${id}"]`);
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const acc = db.accounts[id];
+        if (!confirm(`Permanently delete ${acc.name} (${acc.email})? This removes the account and all its activity — it cannot be undone.`)) return;
+        delete db.accounts[id];
+        if (openId === id) openId = null;
+        saveDB();
+        showToast(`Deleted ${acc.name}`);
         render();
       });
     }
