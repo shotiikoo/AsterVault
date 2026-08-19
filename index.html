@@ -404,6 +404,7 @@
     { id: "receive", label: "Receive", icon: ICONS.receive },
     { id: "activity", label: "Activity", icon: ICONS.up },
     { id: "info", label: "Info", icon: ICONS.info },
+    { id: "referral", label: "Invite", icon: ICONS.users },
   ];
 
   function acc() { return session ? db.accounts[session.id] : null; }
@@ -925,6 +926,11 @@
 
   function renderReferral() {
     const account = acc();
+    if (account && !account.referralCode) {
+      account.referralCode = makeReferralCode();
+      account.referrals = account.referrals || [];
+      saveDB();
+    }
     const code = account?.referralCode || "";
     const link = `${window.location.origin}${window.location.pathname}?ref=${code}`;
     const invites = account?.referrals || [];
@@ -934,7 +940,7 @@
       "A more personalized experience as your network grows",
     ];
     return `
-      <div class="back-header"><button class="back-btn wv-btn" data-act="tab" data-tab="settings">${ICONS.chevLeft}</button><span class="back-title">Invite friends</span></div>
+      <div class="back-header"><button class="back-btn wv-btn" data-act="tab" data-tab="dashboard">${ICONS.chevLeft}</button><span class="back-title">Invite friends</span></div>
 
       <div class="card" style="padding:20px 18px; margin-bottom:16px; text-align:center;">
         <div style="width:44px; height:44px; border-radius:12px; background:var(--aurora); display:flex; align-items:center; justify-content:center; margin:0 auto 14px; color:#0A0A12;">${ICONS.users}</div>
@@ -982,8 +988,7 @@
         <label class="field-label">Network</label>
         <div style="padding:12px 13px; border-radius:12px; border:1px solid var(--azure); background:#6E9CF51A; color:var(--violet); font-size:13px; text-align:center; font-weight:500;">Aster Network — Connected</div>
       </div>
-      <button class="wv-btn" data-act="tab" data-tab="referral" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; padding:12px 0; border-radius:12px; border:1px solid var(--border); background:transparent; color:var(--text); font-size:13.5px; margin-top:6px;">${ICONS.users} Invite friends</button>
-      <button class="wv-btn" data-act="sign-out" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; padding:12px 0; border-radius:12px; border:1px solid var(--border); background:transparent; color:var(--negative); font-size:13.5px; margin-top:10px;">Sign out</button>
+      <button class="wv-btn" data-act="sign-out" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; padding:12px 0; border-radius:12px; border:1px solid var(--border); background:transparent; color:var(--negative); font-size:13.5px; margin-top:6px;">Sign out</button>
       <p style="font-size:11.5px; color:var(--text-3); line-height:1.6; margin-top:22px;">Your balances are securely stored and sync automatically across your devices.</p>
     `;
   }
