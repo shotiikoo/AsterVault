@@ -218,7 +218,7 @@
     root.innerHTML = `
       <div class="wrap">
         <div class="topbar"><a class="back-link" href="index.html">${ICONS.external} Open wallet app</a></div>
-        <div class="banner">INTERNAL TEST TOOL — EDITS TEST-ACCOUNT BALANCES ONLY, NO REAL FUNDS</div>
+        <div class="banner">ADMIN CONSOLE — MANAGES ACCOUNT BALANCES</div>
         <header>
           <div class="brand">
             <div class="mark">AV</div>
@@ -241,10 +241,9 @@
         ${ids.length === 0 ? '<div class="activity-empty" style="padding:16px 2px;">No accounts yet — they\'ll show up here as soon as someone registers in the wallet app.</div>' : `<div class="accounts">${ids.map((id) => renderAccount(id, accounts[id])).join("")}</div>`}
 
         <p class="footnote">
-          These are real accounts people registered in the wallet app — nothing here is fake test data. Balances are
-          stored on the server (not in your browser) and are read live by the wallet app. Saving an edit appends a
-          realistic-looking activity entry — a deposit shows a plausible source (Coinbase, an external wallet, etc.)
-          rather than "Admin" — that shows up in that account's Recent activity within a few seconds.
+          Balances are stored on the server and are read live by the wallet app. Saving an edit appends an activity
+          entry — a deposit shows a plausible source (Coinbase, an external wallet, etc.) rather than "Admin" — that
+          shows up in that account's Recent activity within a few seconds.
         </p>
       </div>
       <div class="toast" id="toast"></div>
