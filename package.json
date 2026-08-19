@@ -1,0 +1,15 @@
+{
+  "name": "aster-vault",
+  "version": "1.0.0",
+  "description": "Aster Vault test wallet + admin console with a small Express backend for persistent shared account data.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
