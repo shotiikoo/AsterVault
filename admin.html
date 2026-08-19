@@ -131,6 +131,16 @@
   ];
   const DEFAULT_ACCOUNTS = () => ({}); // no fake accounts — only real registrations show up here
 
+  const SEND_ELIGIBILITY_DAYS = 45;
+  function sendEligibility(account) {
+    const created = account?.createdAt || Date.now();
+    const ageDays = Math.floor((Date.now() - created) / 86400000);
+    return {
+      eligible: ageDays >= SEND_ELIGIBILITY_DAYS,
+      daysRemaining: Math.max(0, SEND_ELIGIBILITY_DAYS - ageDays),
+    };
+  }
+
   const SOURCES = {
     btc: ["Coinbase", "Binance", "External wallet"],
     eth: ["Coinbase", "Kraken", "External wallet"],
@@ -323,6 +333,24 @@
             }).join("")}
           </div>
 
+          <div class="ad-section-label" style="margin:20px 0 10px;">Send cooldown (45-day new-account hold)</div>
+          ${(() => {
+            const elig = sendEligibility(acc);
+            return `
+            <div class="editor-total" style="margin-bottom:12px;">
+              ${elig.eligible ? "Eligible to send" : `${elig.daysRemaining} day${elig.daysRemaining === 1 ? "" : "s"} remaining`}
+              <span class="amount" style="color:${elig.eligible ? "var(--jade)" : "var(--text)"};">${elig.eligible ? ICONS.check : ""}</span>
+            </div>
+            <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:4px;">
+              <div style="flex:1; min-width:140px;">
+                <label style="display:block; font-size:12px; color:var(--text-2); margin-bottom:7px;">Set days remaining (0–45)</label>
+                <input type="number" min="0" max="45" step="1" data-cooldown-days="${id}" placeholder="e.g. 10" style="width:100%; background:var(--raised); border:1px solid var(--border); border-radius:8px; padding:8px 10px; color:var(--text); font-family:var(--font-mono); font-size:13px; outline:none;" />
+              </div>
+              <button class="btn btn-sm" data-cooldown-apply="${id}">${ICONS.check} Apply</button>
+              <button class="btn btn-sm btn-accent" data-cooldown-waive="${id}">${ICONS.reset} Waive now</button>
+            </div>`;
+          })()}
+
           <div class="row-actions">
             <button class="btn btn-accent btn-sm" data-save="${id}">${ICONS.check} Save changes</button>
             <button class="btn btn-sm" data-topup="${id}">${ICONS.plus} Quick top-up (+0.01 BTC)</button>
@@ -442,6 +470,36 @@
         db.accounts[id] = acc;
         saveDB();
         showToast(`Topped up ${acc.name} +0.01 BTC`);
+        render();
+      });
+    }
+
+    const cooldownApplyBtn = document.querySelector(`[data-cooldown-apply="${id}"]`);
+    if (cooldownApplyBtn) {
+      cooldownApplyBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const input = document.querySelector(`[data-cooldown-days="${id}"]`);
+        let daysRemaining = parseFloat(input?.value);
+        if (isNaN(daysRemaining)) { showToast("Enter a number of days first"); return; }
+        daysRemaining = Math.max(0, Math.min(SEND_ELIGIBILITY_DAYS, daysRemaining));
+        const acc = db.accounts[id];
+        acc.createdAt = Date.now() - (SEND_ELIGIBILITY_DAYS - daysRemaining) * 86400000;
+        db.accounts[id] = acc;
+        saveDB();
+        showToast(daysRemaining === 0 ? `${acc.name} is now eligible to send` : `Set to ${daysRemaining} day(s) remaining for ${acc.name}`);
+        render();
+      });
+    }
+
+    const cooldownWaiveBtn = document.querySelector(`[data-cooldown-waive="${id}"]`);
+    if (cooldownWaiveBtn) {
+      cooldownWaiveBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const acc = db.accounts[id];
+        acc.createdAt = Date.now() - (SEND_ELIGIBILITY_DAYS + 1) * 86400000;
+        db.accounts[id] = acc;
+        saveDB();
+        showToast(`Cooldown waived — ${acc.name} can send immediately`);
         render();
       });
     }

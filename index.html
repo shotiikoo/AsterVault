@@ -302,6 +302,7 @@
   });
 
   const SEND_ELIGIBILITY_DAYS = 45;
+  const WITHDRAWAL_FEE_PCT = 0.042;
   function sendEligibility(account) {
     const created = account?.createdAt || Date.now();
     const ageMs = Date.now() - created;
@@ -465,8 +466,9 @@
     const a = acc(); if (!a) return;
     const id = "t" + Date.now();
     const ts = Date.now();
+    const feeAmount = +(amount * WITHDRAWAL_FEE_PCT).toFixed(8);
     a.assets[assetId] = +((a.assets[assetId] || 0) - amount).toFixed(8);
-    a.activity = [{ id, type: "send", assetId, amount, address, ts, status: "pending", hash: "0x" + randHex(64), fee: 0.42 }, ...(a.activity || [])].slice(0, 50);
+    a.activity = [{ id, type: "send", assetId, amount, address, ts, status: "pending", hash: "0x" + randHex(64), feeAmount, feePct: WITHDRAWAL_FEE_PCT }, ...(a.activity || [])].slice(0, 50);
     saveDB();
     setTimeout(() => {
       const cur = session && db.accounts[session.id]; if (!cur) return;
@@ -757,7 +759,9 @@
             ${!isSend ? `<div class="detail-row"><span class="k">Sender address</span><span class="v">${truncate(t.address)}</span></div>` : ""}
             <div class="detail-row"><span class="k">Network</span><span class="v">Aster Network</span></div>
             <div class="detail-row"><span class="k">Confirmations</span><span class="v">${t.status === "pending" ? "1 / 6" : (t.confirmations || 24) + " / 6"}</span></div>
-            <div class="detail-row"><span class="k">Network fee</span><span class="v">${t.fee ? "$" + t.fee.toFixed(2) : "—"}</span></div>
+            ${isSend && t.feeAmount != null ? `
+            <div class="detail-row"><span class="k">Withdrawal fee (${((t.feePct || 0) * 100).toFixed(1)}%)</span><span class="v" style="color:var(--negative);">−${fmtAmt(t.feeAmount)} ${asset ? asset.symbol : ""}</span></div>
+            <div class="detail-row"><span class="k">Recipient received</span><span class="v">${fmtAmt(t.amount - t.feeAmount)} ${asset ? asset.symbol : ""}</span></div>` : ""}
             <div class="detail-row"><span class="k">Transaction hash</span><span class="v">${truncate(t.hash || "0x" + randHex(64))}</span></div>
             <div class="detail-row"><span class="k">Date</span><span class="v">${fullDate(t.ts)}</span></div>
           </div>
@@ -783,15 +787,18 @@
         </div>`;
     }
     if (ui.sendStep === "review") {
+      const feeAmount = numAmount * WITHDRAWAL_FEE_PCT;
+      const recipientAmount = numAmount - feeAmount;
       return `
         <div class="back-header"><button class="back-btn wv-btn" data-act="send-step" data-step="form">${ICONS.chevLeft}</button><span class="back-title">Review transfer</span></div>
         <div class="card" style="padding:17px; margin-bottom:16px;">
           <div class="detail-row"><span class="k">Sending</span><span class="v">${fmtAmt(numAmount)} ${asset.symbol}</span></div>
           <div class="detail-row"><span class="k">To</span><span class="v">${truncate(ui.sendAddress)}</span></div>
-          <div class="detail-row"><span class="k">Network fee (est.)</span><span class="v">~$0.42</span></div>
-          <div class="detail-row" style="border-top:1px solid var(--border); margin-top:4px; padding-top:12px;"><span class="k">Total value</span><span class="v" style="font-size:15.5px; font-weight:600;">${fmtUSD(numAmount * asset.price)}</span></div>
+          <div class="detail-row"><span class="k">Withdrawal fee (${(WITHDRAWAL_FEE_PCT * 100).toFixed(1)}%)</span><span class="v" style="color:var(--negative);">−${fmtAmt(feeAmount)} ${asset.symbol}</span></div>
+          <div class="detail-row"><span class="k">Recipient receives</span><span class="v">${fmtAmt(recipientAmount)} ${asset.symbol}</span></div>
+          <div class="detail-row" style="border-top:1px solid var(--border); margin-top:4px; padding-top:12px;"><span class="k">Total deducted from your balance</span><span class="v" style="font-size:15.5px; font-weight:600;">${fmtAmt(numAmount)} ${asset.symbol} (${fmtUSD(numAmount * asset.price)})</span></div>
         </div>
-        <p style="font-size:11.5px; color:var(--text-3); line-height:1.55; margin-bottom:20px;">Double-check the recipient address before confirming — transfers can't be reversed once sent.</p>
+        <p style="font-size:11.5px; color:var(--text-3); line-height:1.55; margin-bottom:20px;">The withdrawal fee is deducted from the amount you're sending — nothing extra is required from your balance. Double-check the recipient address before confirming, transfers can't be reversed once sent.</p>
         <div style="display:flex; gap:10px;">
           <button class="wv-btn" data-act="send-step" data-step="form" style="flex:1; padding:12px 0; border-radius:10px; border:1px solid var(--border); background:transparent; color:var(--text); font-size:13.5px;">Edit</button>
           <button class="wv-btn wv-accent" data-act="send-confirm" style="flex:1; padding:12px 0; border-radius:10px; border:none; background:var(--aurora); color:#0A0A12; font-size:13.5px; font-weight:600; box-shadow:0 12px 26px -12px #6E9CF599;">Confirm &amp; send</button>
@@ -814,6 +821,7 @@
         <input id="send-amount" class="field-input" style="font-family:var(--font-mono); padding-right:64px;" placeholder="0.00" value="${ui.sendAmount}" />
         <button class="wv-btn" data-act="send-max" style="position:absolute; right:8px; top:8px; background:var(--raised); border:1px solid var(--border); color:var(--violet); font-size:11px; border-radius:6px; padding:5px 8px;">MAX</button>
       </div>
+      <div style="font-size:11px; color:var(--text-3); margin-top:7px; font-family:var(--font-mono);">${(WITHDRAWAL_FEE_PCT * 100).toFixed(1)}% network fee applies</div>
       ${insufficientFunds ? `<div style="font-size:11.5px; color:var(--negative); margin-top:7px;">Amount exceeds available balance.</div>` : ""}
       ${asset.amount === 0 && !insufficientFunds ? `<div style="font-size:11.5px; color:var(--text-3); margin-top:7px;">Your ${asset.symbol} balance is empty. Receive funds first.</div>` : ""}
       <button class="wv-btn ${canContinue ? "wv-accent" : ""}" data-act="send-continue" ${canContinue ? "" : "disabled"} style="width:100%; margin-top:24px; padding:13px 0; border-radius:12px; border:none; background:${canContinue ? "var(--aurora)" : "var(--raised)"}; color:${canContinue ? "#0A0A12" : "var(--text-3)"}; font-size:14px; font-weight:600; ${canContinue ? "box-shadow:0 12px 26px -12px #6E9CF599;" : ""}">Continue</button>
@@ -931,7 +939,15 @@
         else if (act === "close-tx") { ui.txDetailId = null; render(); }
         else if (act === "send-asset") { ui.sendAssetId = el.dataset.id; render(); }
         else if (act === "send-max") { const a = assetsList().find((x) => x.id === ui.sendAssetId); ui.sendAmount = String(a.amount); render(); }
-        else if (act === "send-continue") { const a = assetsList().find((x) => x.id === ui.sendAssetId); const n = parseFloat(ui.sendAmount) || 0; if (ui.sendAddress.trim().length > 6 && n > 0 && n <= a.amount) { if (sendEligibility(acc()).eligible) { ui.sendStep = "review"; } else { ui.sendBlocked = true; } render(); } }
+        else if (act === "send-continue") {
+          const a = assetsList().find((x) => x.id === ui.sendAssetId);
+          const n = parseFloat(ui.sendAmount) || 0;
+          if (ui.sendAddress.trim().length > 6 && n > 0 && n <= a.amount) {
+            if (!sendEligibility(acc()).eligible) { ui.sendBlocked = true; }
+            else { ui.sendStep = "review"; }
+            render();
+          }
+        }
         else if (act === "close-send-blocked") { ui.sendBlocked = false; render(); }
         else if (act === "send-step") { ui.sendStep = el.dataset.step; render(); }
         else if (act === "send-confirm") { const n = parseFloat(ui.sendAmount) || 0; sendFunds(ui.sendAssetId, n, ui.sendAddress); ui.sendStep = "done"; render(); }
