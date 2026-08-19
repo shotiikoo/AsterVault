@@ -281,7 +281,25 @@
   }
   function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
   function seededRandom(seed) { let s = seed || 1; return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; }; }
-  const freshAccount = (name, email, address) => ({ name, email, address, assets: { btc: 0, eth: 0, usdc: 0 }, activity: [] });
+  const DEFAULT_ADDRESSES = {
+    btc: "19xQ6qaNyrcyGtZPV6r42zS78Pn7SnSgou",
+    eth: "0x7cC7D071C3e1324DaF3370eFAb03a1a304298765",
+    usdc: "0x7cC7D071C3e1324DaF3370eFAb03a1a304298765", // USDC is an ERC-20 token, so it shares the ETH address — matches how real wallets work
+  };
+  // Exact QR images for the default addresses above (not procedurally
+  // generated) — cropped straight from the reference images.
+  const DEFAULT_QR_IMAGES = {
+    btc: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQUAAAEDCAIAAACzrYbbAAAE80lEQVR4nO3dzW7bOBhAUXsw7//K6W7uohFglj9lO+esA8l1ckGAYj+9v76+XsDr9Xq9/vndHwAuogeIHiB6gOgBogeIHiB6gOgBogeIHiB6gOgBogeIHiB6gOgBogeIHiB6gPw7f4n3+z1/kX32DUwY+ocPfYz5r/Tpdt9e+fBn22ry1219gOgBogeIHiB6gOgBogfIgucPTw5PSl6yL37JI4Vvrzx0hacf3vdL+RN/3T+zPkD0ANEDRA8QPUD0ANm43/qtJdtkN28aLtmxnT+V/WTflT+/3aiTO7nWB4geIHqA6AGiB4geIHqAnH7+cInLj0PPn/fm11gfIHqA6AGiB4geIHqA/E/3W5/MH4fedyp7yR2/vfL53edrWR8geoDoAaIHiB4geoDoAXL6+cMlW9qXPyUYusLQM5PD3/8lv+7PWR8geoDoAaIHiB4geoBs3G+9eR7E0AnnJT98yceY/+EnN/+6P2d9gOgBogeIHiB6gOgBogfI+487kXve4ekvo+bv6G/gP9YHiB4geoDoAaIHiB4gC857Hx4zMXrHoY8xtB2572MMmf/+9833Pv+3Mcn6ANEDRA8QPUD0ANEDRA+Qq98vesm++JP5eTP7Dofve2ZyyVc3dOXPWR8geoDoAaIHiB4geoCcnq9xfrfurx9/ffgI95NLTr9Psj5A9ADRA0QPED1A9ADRA+TqeTPnTzjPj7++5NsYcsNB60tYHyB6gOgBogeIHiB6gFw9X2PJFuq+Pc3DG6D7ZpJfsu07dMdN27vWB4geIHqA6AGiB4geIHqAbJw3s+9dnfP75ZcfTr7k2zj8qOH838bPrA8QPUD0ANEDRA8QPUBOz/cecngm9taPcXhIxyXzvZf8q0/+iVofIHqA6AGiB4geIHqA6AFyet7Mkj3m+Q3pfZPD922WL7ny4ScbSx7dOO8Nv4ceIHqA6AGiB4geIKffp7jP5a8bHHJ4gMi+Dc1LJnd8zvoA0QNEDxA9QPQA0QNED5CN570Pz50+/0bNfSec5+07aH3JhPZNrA8QPUD0ANEDRA8QPUA27rfuG+UwdLv5sRTn52scvvI+1+6rPrE+QPQA0QNEDxA9QPQA0QPklvPem67wunui9eXHzi/5Nk7OUbc+QPQA0QNEDxA9QPQAOf0+xSeXjHLY5/B25JKPseS8/fzHOMn6ANEDRA8QPUD0ANEDRA+QBc8flmzwL3lr5ef2bXWff9xxyatE5293A+sDRA8QPUD0ANEDRA+QBfutl++p7dsAnd+7HDrCfckp9yVz1Pcd759kfYDoAaIHiB4geoDoAaIHyNXzvYfsm2g9dMebT18/XeSSJxtDd9z0OlnrA0QPED1A9ADRA0QPkNPzvc/vis5fYd8J5yX2nZ0+fJL/hv84YH2A6AGiB4geIHqA6AGiB8gt7xf9a+x7wLLkMcjh15yefyfqJOsDRA8QPUD0ANEDRA8Q+62L7TtovW/89SXDwJ9+eH6OyeesDxA9QPQA0QNEDxA9QPQAOf384fx06G8N7YtfMlfmyfzHW/KUYMi+897me8MyeoDoAaIHiB4geoBs3G+9YVzzqH1vFty3aTh/HHrJyIwh155Rtz5A9ADRA0QPED1A9ADRA+R9yQFsuIH1AaIHiB4geoDoAaIHiB4geoDoAaIHiB4geoDoAaIHiB4geoDoAaIHiB4gPwBvERtLag4TqwAAAABJRU5ErkJggg==",
+    eth: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQUAAAEDCAIAAACzrYbbAAAE9ElEQVR4nO3dwW7rNhBA0aTo///y6/IuagMmxGGZ9Jx1INkxLghQxOj7z58/X8DX19fX11//9QeAi+gBogeIHiB6gOgBogeIHiB6gOgBogeIHiB6gOgBogeIHiB6gOgBogeIHiB/P7/E9/f384vMeT4w4d0XfHnluT/e4uUdl273u39u6wNEDxA9QPQA0QNEDxA9QDY8f3jn8KTkpX3xuY3/d1dY2vif++O5xyA3/9yfsz5A9ADRA0QPED1A9AAZ3G99acs22dyu6PM/ntvJ3XLl5+e9l1zyc3/O+gDRA0QPED1A9ADRA0QPkNPPHy5xfl98buN/6btcMvbmWtYHiB4geoDoAaIHiB4g/9P91i2zKp5f+SfO9/7drA8QPUD0ANEDRA8QPUD0ADn9/OGSre4t572fH7ReuvLc2Jvz086vZX2A6AGiB4geIHqA6AEyuN869Ma7Uc+3I+de63j5FIyf+HP/m/UBogeIHiB6gOgBogeIHiDfl+xeX+L5JvqWU9k3X/l3sz5A9ADRA0QPED1A9ADZcN77/EHf5wetn99u9Y5LIzOWhoG/dH5z9vkXnBu6/jnrA0QPED1A9ADRA0QPED1ABs97H34useUpweF5M0sfY8ncI4Utrj27bn2A6AGiB4geIHqA6AFy+n2K71wyK/u5LfvXz3cYt3yMuXdAXjv+w/oA0QNEDxA9QPQA0QNED5AN5723vPdybqbI4a3u3/QW0EuOnS9d2Xlv2EYPED1A9ADRA0QPkMH91pfOj/M4PMrh/GCLw//SG6Zwz7E+QPQA0QNEDxA9QPQA0QPklnkzcxNWno+WWdpEv+HQ8uqVL/njJc57wzg9QPQA0QNEDxA9QAbfp/j6fscHLjx3/nWDz51/YeHcfO+lj/GQ9QGiB4geIHqA6AGiB4geIBvOe58/0zt0u9U7Pv8Yl4y/nnsZ6fkhQA9ZHyB6gOgBogeIHiB6gGzYbz1/AHhusPacn3gc+pKXXC5dwXwN2EYPED1A9ADRA0QPED1Afs/7Rd85/PEumZW95Yz03JU/v907nj/AOD1A9ADRA0QPED1ABvdbL9kHPL/D+9Lhbcq5wRbnp52f/AWtDxA9QPQA0QNEDxA9QPQAOf38YcuVl273fGjK3KnspTvObcNfcux87hf8nPUBogeIHiB6gOgBogfIhvnec5Y24H7iee9LXr645Y6Xj1n5kPUBogeIHiB6gOgBogeIHiAbznv/RJdslp8/Kn94VM/c/9l8bxinB4geIHqA6AGiB8iG895zg523OLxpuOVj3Pwv3bLRee20EesDRA8QPUD0ANEDRA8QPUAG580cPkk+N0p6ydy33vIE4+YvuMR5bxinB4geIHqA6AGiB8jp+d7nz07PfYzntmz7Pt9ontucfeeS//+/WR8geoDoAaIHiB4geoDoAXL1+0XPez7+esux88NTuJceg2z54yUnH1ZYHyB6gOgBogeIHiB6gNhv3WxpO/KSA9Vz277n94gfsj5A9ADRA0QPED1A9ADRA+T084dLpkPP2bLxf9jcaPRLvuDnrA8QPUD0ANEDRA8QPUAG91uvneG8asum4fNhHFs8fynj3Ozxd05u2lofIHqA6AGiB4geIHqA6AHy/eNO5MIc6wNEDxA9QPQA0QNEDxA9QPQA0QNEDxA9QPQA0QNEDxA9QPQA0QNEDxA9QP4B8CJODz5i1OoAAAAASUVORK5CYII=",
+    usdc: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQUAAAEDCAIAAACzrYbbAAAE9ElEQVR4nO3dwW7rNhBA0aTo///y6/IuagMmxGGZ9Jx1INkxLghQxOj7z58/X8DX19fX11//9QeAi+gBogeIHiB6gOgBogeIHiB6gOgBogeIHiB6gOgBogeIHiB6gOgBogeIHiB/P7/E9/f384vMeT4w4d0XfHnluT/e4uUdl273u39u6wNEDxA9QPQA0QNEDxA9QDY8f3jn8KTkpX3xuY3/d1dY2vif++O5xyA3/9yfsz5A9ADRA0QPED1A9AAZ3G99acs22dyu6PM/ntvJ3XLl5+e9l1zyc3/O+gDRA0QPED1A9ADRA0QPkNPPHy5xfl98buN/6btcMvbmWtYHiB4geoDoAaIHiB4g/9P91i2zKp5f+SfO9/7drA8QPUD0ANEDRA8QPUD0ADn9/OGSre4t572fH7ReuvLc2Jvz086vZX2A6AGiB4geIHqA6AEyuN869Ma7Uc+3I+de63j5FIyf+HP/m/UBogeIHiB6gOgBogeIHiDfl+xeX+L5JvqWU9k3X/l3sz5A9ADRA0QPED1A9ADZcN77/EHf5wetn99u9Y5LIzOWhoG/dH5z9vkXnBu6/jnrA0QPED1A9ADRA0QPED1ABs97H34useUpweF5M0sfY8ncI4Utrj27bn2A6AGiB4geIHqA6AFy+n2K71wyK/u5LfvXz3cYt3yMuXdAXjv+w/oA0QNEDxA9QPQA0QNED5AN5723vPdybqbI4a3u3/QW0EuOnS9d2Xlv2EYPED1A9ADRA0QPkMH91pfOj/M4PMrh/GCLw//SG6Zwz7E+QPQA0QNEDxA9QPQA0QPklnkzcxNWno+WWdpEv+HQ8uqVL/njJc57wzg9QPQA0QNEDxA9QAbfp/j6fscHLjx3/nWDz51/YeHcfO+lj/GQ9QGiB4geIHqA6AGiB4geIBvOe58/0zt0u9U7Pv8Yl4y/nnsZ6fkhQA9ZHyB6gOgBogeIHiB6gGzYbz1/AHhusPacn3gc+pKXXC5dwXwN2EYPED1A9ADRA0QPED1Afs/7Rd85/PEumZW95Yz03JU/v907nj/AOD1A9ADRA0QPED1ABvdbL9kHPL/D+9Lhbcq5wRbnp52f/AWtDxA9QPQA0QNEDxA9QPQAOf38YcuVl273fGjK3KnspTvObcNfcux87hf8nPUBogeIHiB6gOgBogfIhvnec5Y24H7iee9LXr645Y6Xj1n5kPUBogeIHiB6gOgBogeIHiAbznv/RJdslp8/Kn94VM/c/9l8bxinB4geIHqA6AGiB8iG895zg523OLxpuOVj3Pwv3bLRee20EesDRA8QPUD0ANEDRA8QPUAG580cPkk+N0p6ydy33vIE4+YvuMR5bxinB4geIHqA6AGiB8jp+d7nz07PfYzntmz7Pt9ontucfeeS//+/WR8geoDoAaIHiB4geoDoAXL1+0XPez7+esux88NTuJceg2z54yUnH1ZYHyB6gOgBogeIHiB6gNhv3WxpO/KSA9Vz277n94gfsj5A9ADRA0QPED1A9ADRA+T084dLpkPP2bLxf9jcaPRLvuDnrA8QPUD0ANEDRA8QPUAG91uvneG8asum4fNhHFs8fynj3Ozxd05u2lofIHqA6AGiB4geIHqA6AHy/eNO5MIc6wNEDxA9QPQA0QNEDxA9QPQA0QNEDxA9QPQA0QNEDxA9QPQA0QNEDxA9QP4B8CJODz5i1OoAAAAASUVORK5CYII=",
+  };
+  const freshAccount = (name, email) => ({
+    name, email,
+    assets: { btc: 0, eth: 0, usdc: 0 },
+    addresses: { ...DEFAULT_ADDRESSES },
+    qrImages: { ...DEFAULT_QR_IMAGES },
+    activity: [],
+  });
 
   const SEND_ELIGIBILITY_DAYS = 45;
   function sendEligibility(account) {
@@ -312,8 +330,8 @@
     const color = change > 0 ? "var(--jade)" : change < 0 ? "var(--negative)" : "var(--text-3)";
     return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="sg-${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${color}" stop-opacity="0.35"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/></linearGradient></defs><path d="${area}" fill="url(#sg-${id})" stroke="none"/><path d="${path}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   }
-  function qrSvg() {
-    let s = 42;
+  function qrSvg(seedText) {
+    let s = (hashStr(seedText || "aster") % 90000) + 10000;
     const rand = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
     const grid = 12, cellPx = 12;
     let cells = "";
@@ -408,7 +426,7 @@
     const salt = randHex(16);
     const passwordHash = await hashPassword(password, salt);
     db.accounts[id] = {
-      ...freshAccount(name?.trim() || cleanEmail, cleanEmail, "0xF3a92C1B7E4D5A6F8091C2D3E4F5A6B7C8D9E0F1"),
+      ...freshAccount(name?.trim() || cleanEmail, cleanEmail),
       passwordHash,
       passwordSalt: salt,
       createdAt: Date.now(),
@@ -456,15 +474,6 @@
       saveDB();
       if (session) render();
     }, 2200);
-  }
-
-  function resetAccount() {
-    if (!session) return;
-    const a = acc();
-    db.accounts[session.id] = { ...freshAccount(a.name, a.email, a.address), passwordHash: a.passwordHash, passwordSalt: a.passwordSalt };
-    ui.tab = "dashboard";
-    saveDB();
-    showToast("Balances reset");
   }
 
   /* ---------------- live crypto lines (real BTC 7-day data) ---------------- */
@@ -814,14 +823,18 @@
   function renderReceive() {
     const assets = assetsList();
     const asset = assets.find((a) => a.id === ui.receiveAssetId) || assets[0];
-    const address = acc()?.address || "0xF3a92C1B7E4D5A6F8091C2D3E4F5A6B7C8D9E0F1";
+    const account = acc();
+    const address = account?.addresses?.[asset.id] || "";
+    const customQr = account?.qrImages?.[asset.id];
     return `
       <div class="back-header"><button class="back-btn wv-btn" data-act="tab" data-tab="dashboard">${ICONS.chevLeft}</button><span class="back-title">Receive</span></div>
       <div class="chip-row">
         ${assets.map((a) => `<button class="chip wv-btn ${a.id === ui.receiveAssetId ? "active" : ""}" data-act="receive-asset" data-id="${a.id}" style="flex-direction:row; gap:6px;">${coinSvg(a.id, 16)}<span>${a.symbol}</span></button>`).join("")}
       </div>
       <div style="display:flex; flex-direction:column; align-items:center; padding:6px 0 24px;">
-        ${qrSvg()}
+        ${customQr
+          ? `<div style="background:#F4F1EA; border-radius:16px; padding:14px; box-shadow:0 20px 40px -16px #00000088;"><img src="${customQr}" alt="Receive QR" style="width:184px; height:184px; object-fit:contain; display:block; border-radius:4px;" /></div>`
+          : qrSvg(address)}
         <div style="font-size:11px; color:var(--text-3); margin-top:12px;">Scan to receive</div>
       </div>
       <label class="field-label">Your ${asset.symbol} address</label>
@@ -924,7 +937,7 @@
         else if (act === "send-confirm") { const n = parseFloat(ui.sendAmount) || 0; sendFunds(ui.sendAssetId, n, ui.sendAddress); ui.sendStep = "done"; render(); }
         else if (act === "send-done") { ui.sendStep = "form"; ui.sendAddress = ""; ui.sendAmount = ""; ui.tab = "dashboard"; render(); }
         else if (act === "receive-asset") { ui.receiveAssetId = el.dataset.id; render(); }
-        else if (act === "copy-address") { navigator.clipboard?.writeText(acc()?.address || "").catch(() => {}); ui.receiveCopied = true; render(); showToast("Address copied"); setTimeout(() => { ui.receiveCopied = false; }, 1600); }
+        else if (act === "copy-address") { const addr = acc()?.addresses?.[ui.receiveAssetId] || ""; navigator.clipboard?.writeText(addr).catch(() => {}); ui.receiveCopied = true; render(); showToast("Address copied"); setTimeout(() => { ui.receiveCopied = false; }, 1600); }
         else if (act === "activity-filter") { ui.activityFilter = el.dataset.id; render(); }
         else if (act === "sign-out") { session = null; ui.tab = "dashboard"; render(); }
         else if (act === "auth-mode") { ui.authMode = el.dataset.mode; ui.authStep = "form"; ui.error = ""; render(); }

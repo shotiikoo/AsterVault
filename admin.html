@@ -87,6 +87,18 @@
   .asset-field input:focus { border-color: var(--azure); }
   .usd-preview { font-family: var(--font-mono); font-size: 11px; color: var(--jade); margin-top: 6px; }
 
+  .addr-editor { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .addr-field { background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .addr-field label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); margin-bottom: 7px; }
+  .addr-field input { width: 100%; background: var(--raised); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; color: var(--text); font-family: var(--font-mono); font-size: 12px; outline: none; margin-bottom: 9px; }
+  .addr-field input:focus { border-color: var(--azure); }
+  .qr-row { display: flex; align-items: center; gap: 8px; }
+  .qr-thumb { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; border: 1px solid var(--border); background: #F4F1EA; flex-shrink: 0; }
+  .qr-thumb-empty { width: 32px; height: 32px; border-radius: 6px; border: 1px dashed var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--text-3); }
+  .upload-label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .upload-label:hover { border-color: var(--border-hi); color: var(--text); }
+  .qr-clear-btn { background: none; border: none; color: var(--negative); cursor: pointer; padding: 6px; flex-shrink: 0; }
+
   .editor-total { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border: 1px solid var(--border-hi); border-radius: 10px; padding: 10px 13px; margin: 2px 0 14px; font-size: 12.5px; color: var(--text-2); }
   .editor-total .amount { font-family: var(--font-mono); font-size: 15px; color: var(--text); }
 
@@ -132,6 +144,8 @@
     plus: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>',
     external: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>',
     trash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
+    upload: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>',
+    qr: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM14 21h.01M21 14h.01M17.5 17.5h3.5v3.5"/></svg>',
   };
 
   const fmtUSD = (n) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
@@ -276,7 +290,7 @@
             <div class="account-name">${acc.name}</div>
             <div class="account-email">${acc.email}</div>
           </div>
-          <div class="account-value">${fmtUSD(total)}<div class="sub">${truncate(acc.address)}</div></div>
+          <div class="account-value">${fmtUSD(total)}</div>
           <span class="chev">${ICONS.chevron}</span>
         </div>
         <div class="account-body">
@@ -289,8 +303,28 @@
               </div>`).join("")}
           </div>
           <div class="editor-total">New total value for this account<span class="amount" id="editor-total-${id}">${fmtUSD(total)}</span></div>
+
+          <div class="ad-section-label" style="margin:20px 0 10px;">Receive addresses &amp; QR codes</div>
+          <div class="addr-editor">
+            ${ASSET_DEFS.map((d) => {
+              const qr = acc.qrImages?.[d.id];
+              return `
+              <div class="addr-field">
+                <label><span class="coin-dot" style="background:${d.color}"></span>${d.symbol} address</label>
+                <input type="text" data-address="${d.id}" data-account="${id}" placeholder="Enter ${d.symbol} address…" value="${(acc.addresses?.[d.id] || "").replace(/"/g, "&quot;")}" />
+                <div class="qr-row">
+                  ${qr ? `<img class="qr-thumb" src="${qr}" alt="${d.symbol} QR" />` : `<div class="qr-thumb-empty">${ICONS.qr}</div>`}
+                  <label class="upload-label">${ICONS.upload} ${qr ? "Replace" : "Upload"} QR
+                    <input type="file" accept="image/*" data-qr-upload="${d.id}" data-qr-account="${id}" style="display:none;" />
+                  </label>
+                  ${qr ? `<button class="qr-clear-btn" data-qr-clear="${d.id}" data-qr-clear-account="${id}" title="Remove custom QR">${ICONS.trash}</button>` : ""}
+                </div>
+              </div>`;
+            }).join("")}
+          </div>
+
           <div class="row-actions">
-            <button class="btn btn-accent btn-sm" data-save="${id}">${ICONS.check} Save balances</button>
+            <button class="btn btn-accent btn-sm" data-save="${id}">${ICONS.check} Save changes</button>
             <button class="btn btn-sm" data-topup="${id}">${ICONS.plus} Quick top-up (+0.01 BTC)</button>
             <button class="btn btn-sm btn-danger" data-delete="${id}">${ICONS.trash} Delete account</button>
           </div>
@@ -314,10 +348,10 @@
   function wireAccount(id) {
     document.querySelector(`[data-toggle="${id}"]`).addEventListener("click", () => { openId = openId === id ? null : id; render(); });
 
-    const inputs = document.querySelectorAll(`input[data-account="${id}"]`);
+    const balanceInputs = document.querySelectorAll(`input[data-account="${id}"][data-asset]`);
     const updateLivePreview = () => {
       let sum = 0;
-      inputs.forEach((inp) => {
+      balanceInputs.forEach((inp) => {
         const price = parseFloat(inp.dataset.price) || 0;
         const val = Math.max(0, parseFloat(inp.value) || 0);
         sum += val * price;
@@ -327,7 +361,7 @@
       const totalEl = document.getElementById(`editor-total-${id}`);
       if (totalEl) totalEl.textContent = fmtUSD(sum);
     };
-    inputs.forEach((inp) => inp.addEventListener("input", updateLivePreview));
+    balanceInputs.forEach((inp) => inp.addEventListener("input", updateLivePreview));
 
     const saveBtn = document.querySelector(`[data-save="${id}"]`);
     if (saveBtn) {
@@ -335,7 +369,7 @@
         e.stopPropagation();
         const acc = db.accounts[id];
         const activity = acc.activity ? [...acc.activity] : [];
-        document.querySelectorAll(`input[data-account="${id}"]`).forEach((inp) => {
+        document.querySelectorAll(`input[data-account="${id}"][data-asset]`).forEach((inp) => {
           const assetId = inp.dataset.asset;
           const newVal = Math.max(0, parseFloat(inp.value) || 0);
           const oldVal = acc.assets[assetId] || 0;
@@ -348,13 +382,55 @@
           }
           acc.assets[assetId] = newVal;
         });
+        if (!acc.addresses) acc.addresses = {};
+        document.querySelectorAll(`input[data-account="${id}"][data-address]`).forEach((inp) => {
+          const assetId = inp.dataset.address;
+          const val = inp.value.trim();
+          if (val) acc.addresses[assetId] = val;
+        });
         acc.activity = activity.slice(0, 50);
         db.accounts[id] = acc;
         saveDB();
-        showToast(`Saved balances for ${acc.name}`);
+        showToast(`Saved changes for ${acc.name}`);
         render();
       });
     }
+
+    // QR image upload — reads the picked file as a data URL and stores
+    // it directly on the account, right away (no separate save step).
+    document.querySelectorAll(`input[type="file"][data-qr-account="${id}"]`).forEach((fileInput) => {
+      fileInput.addEventListener("change", () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        if (!file.type.startsWith("image/")) { showToast("Please choose an image file"); return; }
+        if (file.size > 1.5 * 1024 * 1024) { showToast("Image is too large — please use one under 1.5MB"); return; }
+        const assetId = fileInput.dataset.qrUpload;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const acc = db.accounts[id];
+          if (!acc.qrImages) acc.qrImages = {};
+          acc.qrImages[assetId] = reader.result;
+          db.accounts[id] = acc;
+          saveDB();
+          showToast(`QR updated for ${assetId.toUpperCase()}`);
+          render();
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    document.querySelectorAll(`[data-qr-clear-account="${id}"]`).forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const assetId = btn.dataset.qrClear;
+        const acc = db.accounts[id];
+        if (acc.qrImages) acc.qrImages[assetId] = null;
+        db.accounts[id] = acc;
+        saveDB();
+        showToast(`Reverted to generated QR for ${assetId.toUpperCase()}`);
+        render();
+      });
+    });
 
     const topupBtn = document.querySelector(`[data-topup="${id}"]`);
     if (topupBtn) {
