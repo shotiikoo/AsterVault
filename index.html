@@ -127,7 +127,7 @@
   .chip.pillshape { flex:none; padding:7.5px 15px; border-radius:999px; }
 
   .nav { grid-area:nav; position:relative; display:flex; border-top:1px solid var(--border); background:linear-gradient(180deg, var(--surface), var(--surface-alt)); padding:0 6px; }
-  .nav-indicator { position:absolute; top:7px; bottom:9px; left:calc(var(--nav-idx, 0) * 25% + 6px); width:calc(25% - 12px); border-radius:12px; background:linear-gradient(160deg, #6E9CF51C, #4FD1A512); border:1px solid #6E9CF530; transition:left .38s cubic-bezier(.22,1,.36,1); pointer-events:none; }
+  .nav-indicator { position:absolute; top:7px; bottom:9px; left:calc(var(--nav-idx, 0) * (100% / var(--nav-count, 4)) + 6px); width:calc(100% / var(--nav-count, 4) - 12px); border-radius:12px; background:linear-gradient(160deg, #6E9CF51C, #4FD1A512); border:1px solid #6E9CF530; transition:left .38s cubic-bezier(.22,1,.36,1); pointer-events:none; }
   .nav-item { flex:1; background:none; border:none; cursor:pointer; padding:12px 4px 13px; display:flex; flex-direction:column; align-items:center; gap:4px; position:relative; z-index:1; color:var(--text-3); }
   .nav-item.active { color:var(--violet); }
   .nav-item span { font-size:10.5px; }
@@ -230,6 +230,7 @@
 <script>
 (function () {
   const DB_KEY = "aster-vault-db";
+  const incomingRefCode = new URLSearchParams(window.location.search).get("ref") || "";
   const ASSET_DEFS = [
     { id: "btc", name: "Bitcoin", symbol: "BTC", price: 97230, change: 2.4, color: "#F7931A" },
     { id: "eth", name: "Ethereum", symbol: "ETH", price: 3510, change: -1.1, color: "#8FA8FF" },
@@ -258,6 +259,8 @@
     reset: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
     x: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
     external: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>',
+    info: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>',
+    users: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   };
   const walletIcon = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>';
 
@@ -293,11 +296,19 @@
     eth: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQUAAAEDCAIAAACzrYbbAAAE9ElEQVR4nO3dwW7rNhBA0aTo///y6/IuagMmxGGZ9Jx1INkxLghQxOj7z58/X8DX19fX11//9QeAi+gBogeIHiB6gOgBogeIHiB6gOgBogeIHiB6gOgBogeIHiB6gOgBogeIHiB/P7/E9/f384vMeT4w4d0XfHnluT/e4uUdl273u39u6wNEDxA9QPQA0QNEDxA9QDY8f3jn8KTkpX3xuY3/d1dY2vif++O5xyA3/9yfsz5A9ADRA0QPED1A9AAZ3G99acs22dyu6PM/ntvJ3XLl5+e9l1zyc3/O+gDRA0QPED1A9ADRA0QPkNPPHy5xfl98buN/6btcMvbmWtYHiB4geoDoAaIHiB4g/9P91i2zKp5f+SfO9/7drA8QPUD0ANEDRA8QPUD0ADn9/OGSre4t572fH7ReuvLc2Jvz086vZX2A6AGiB4geIHqA6AEyuN869Ma7Uc+3I+de63j5FIyf+HP/m/UBogeIHiB6gOgBogeIHiDfl+xeX+L5JvqWU9k3X/l3sz5A9ADRA0QPED1A9ADZcN77/EHf5wetn99u9Y5LIzOWhoG/dH5z9vkXnBu6/jnrA0QPED1A9ADRA0QPED1ABs97H34useUpweF5M0sfY8ncI4Utrj27bn2A6AGiB4geIHqA6AFy+n2K71wyK/u5LfvXz3cYt3yMuXdAXjv+w/oA0QNEDxA9QPQA0QNED5AN5723vPdybqbI4a3u3/QW0EuOnS9d2Xlv2EYPED1A9ADRA0QPkMH91pfOj/M4PMrh/GCLw//SG6Zwz7E+QPQA0QNEDxA9QPQA0QPklnkzcxNWno+WWdpEv+HQ8uqVL/njJc57wzg9QPQA0QNEDxA9QAbfp/j6fscHLjx3/nWDz51/YeHcfO+lj/GQ9QGiB4geIHqA6AGiB4geIBvOe58/0zt0u9U7Pv8Yl4y/nnsZ6fkhQA9ZHyB6gOgBogeIHiB6gGzYbz1/AHhusPacn3gc+pKXXC5dwXwN2EYPED1A9ADRA0QPED1Afs/7Rd85/PEumZW95Yz03JU/v907nj/AOD1A9ADRA0QPED1ABvdbL9kHPL/D+9Lhbcq5wRbnp52f/AWtDxA9QPQA0QNEDxA9QPQAOf38YcuVl273fGjK3KnspTvObcNfcux87hf8nPUBogeIHiB6gOgBogfIhvnec5Y24H7iee9LXr645Y6Xj1n5kPUBogeIHiB6gOgBogeIHiAbznv/RJdslp8/Kn94VM/c/9l8bxinB4geIHqA6AGiB8iG895zg523OLxpuOVj3Pwv3bLRee20EesDRA8QPUD0ANEDRA8QPUAG580cPkk+N0p6ydy33vIE4+YvuMR5bxinB4geIHqA6AGiB8jp+d7nz07PfYzntmz7Pt9ontucfeeS//+/WR8geoDoAaIHiB4geoDoAXL1+0XPez7+esux88NTuJceg2z54yUnH1ZYHyB6gOgBogeIHiB6gNhv3WxpO/KSA9Vz277n94gfsj5A9ADRA0QPED1A9ADRA+T084dLpkPP2bLxf9jcaPRLvuDnrA8QPUD0ANEDRA8QPUAG91uvneG8asum4fNhHFs8fynj3Ozxd05u2lofIHqA6AGiB4geIHqA6AHy/eNO5MIc6wNEDxA9QPQA0QNEDxA9QPQA0QNEDxA9QPQA0QNEDxA9QPQA0QNEDxA9QP4B8CJODz5i1OoAAAAASUVORK5CYII=",
     usdc: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQUAAAEDCAIAAACzrYbbAAAE9ElEQVR4nO3dwW7rNhBA0aTo///y6/IuagMmxGGZ9Jx1INkxLghQxOj7z58/X8DX19fX11//9QeAi+gBogeIHiB6gOgBogeIHiB6gOgBogeIHiB6gOgBogeIHiB6gOgBogeIHiB/P7/E9/f384vMeT4w4d0XfHnluT/e4uUdl273u39u6wNEDxA9QPQA0QNEDxA9QDY8f3jn8KTkpX3xuY3/d1dY2vif++O5xyA3/9yfsz5A9ADRA0QPED1A9AAZ3G99acs22dyu6PM/ntvJ3XLl5+e9l1zyc3/O+gDRA0QPED1A9ADRA0QPkNPPHy5xfl98buN/6btcMvbmWtYHiB4geoDoAaIHiB4g/9P91i2zKp5f+SfO9/7drA8QPUD0ANEDRA8QPUD0ADn9/OGSre4t572fH7ReuvLc2Jvz086vZX2A6AGiB4geIHqA6AEyuN869Ma7Uc+3I+de63j5FIyf+HP/m/UBogeIHiB6gOgBogeIHiDfl+xeX+L5JvqWU9k3X/l3sz5A9ADRA0QPED1A9ADZcN77/EHf5wetn99u9Y5LIzOWhoG/dH5z9vkXnBu6/jnrA0QPED1A9ADRA0QPED1ABs97H34useUpweF5M0sfY8ncI4Utrj27bn2A6AGiB4geIHqA6AFy+n2K71wyK/u5LfvXz3cYt3yMuXdAXjv+w/oA0QNEDxA9QPQA0QNED5AN5723vPdybqbI4a3u3/QW0EuOnS9d2Xlv2EYPED1A9ADRA0QPkMH91pfOj/M4PMrh/GCLw//SG6Zwz7E+QPQA0QNEDxA9QPQA0QPklnkzcxNWno+WWdpEv+HQ8uqVL/njJc57wzg9QPQA0QNEDxA9QAbfp/j6fscHLjx3/nWDz51/YeHcfO+lj/GQ9QGiB4geIHqA6AGiB4geIBvOe58/0zt0u9U7Pv8Yl4y/nnsZ6fkhQA9ZHyB6gOgBogeIHiB6gGzYbz1/AHhusPacn3gc+pKXXC5dwXwN2EYPED1A9ADRA0QPED1Afs/7Rd85/PEumZW95Yz03JU/v907nj/AOD1A9ADRA0QPED1ABvdbL9kHPL/D+9Lhbcq5wRbnp52f/AWtDxA9QPQA0QNEDxA9QPQAOf38YcuVl273fGjK3KnspTvObcNfcux87hf8nPUBogeIHiB6gOgBogfIhvnec5Y24H7iee9LXr645Y6Xj1n5kPUBogeIHiB6gOgBogeIHiAbznv/RJdslp8/Kn94VM/c/9l8bxinB4geIHqA6AGiB8iG895zg523OLxpuOVj3Pwv3bLRee20EesDRA8QPUD0ANEDRA8QPUAG580cPkk+N0p6ydy33vIE4+YvuMR5bxinB4geIHqA6AGiB8jp+d7nz07PfYzntmz7Pt9ontucfeeS//+/WR8geoDoAaIHiB4geoDoAXL1+0XPez7+esux88NTuJceg2z54yUnH1ZYHyB6gOgBogeIHiB6gNhv3WxpO/KSA9Vz277n94gfsj5A9ADRA0QPED1A9ADRA+T084dLpkPP2bLxf9jcaPRLvuDnrA8QPUD0ANEDRA8QPUAG91uvneG8asum4fNhHFs8fynj3Ozxd05u2lofIHqA6AGiB4geIHqA6AHy/eNO5MIc6wNEDxA9QPQA0QNEDxA9QPQA0QNEDxA9QPQA0QNEDxA9QPQA0QNEDxA9QP4B8CJODz5i1OoAAAAASUVORK5CYII=",
   };
+  function makeReferralCode() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no ambiguous 0/O/1/I
+    let out = "";
+    for (let i = 0; i < 7; i++) out += chars[Math.floor(Math.random() * chars.length)];
+    return out;
+  }
   const freshAccount = (name, email) => ({
     name, email,
     assets: { btc: 0, eth: 0, usdc: 0 },
     addresses: { ...DEFAULT_ADDRESSES },
     qrImages: { ...DEFAULT_QR_IMAGES },
+    referralCode: makeReferralCode(),
+    referrals: [],
     activity: [],
   });
 
@@ -384,6 +395,7 @@
     tab: "dashboard", balanceVisible: true, toast: null,
     sendStep: "form", sendAssetId: "btc", sendAddress: "", sendAmount: "",
     receiveAssetId: "btc", receiveCopied: false,
+    refCodeCopied: false, refLinkCopied: false,
     activityFilter: "all", txDetailId: null, sendBlocked: false,
   };
   const NAV = [
@@ -391,6 +403,7 @@
     { id: "send", label: "Send", icon: ICONS.send },
     { id: "receive", label: "Receive", icon: ICONS.receive },
     { id: "activity", label: "Activity", icon: ICONS.up },
+    { id: "info", label: "Info", icon: ICONS.info },
   ];
 
   function acc() { return session ? db.accounts[session.id] : null; }
@@ -432,6 +445,14 @@
       passwordSalt: salt,
       createdAt: Date.now(),
     };
+    if (incomingRefCode) {
+      const referrer = Object.values(db.accounts).find((a) => a.referralCode === incomingRefCode && a !== db.accounts[id]);
+      if (referrer) {
+        referrer.referrals = referrer.referrals || [];
+        referrer.referrals.push({ name: name?.trim() || cleanEmail, ts: Date.now() });
+        db.accounts[id].referredBy = { name: referrer.name, code: incomingRefCode };
+      }
+    }
     saveDB();
     completeSignIn(id, cleanEmail, name?.trim() || cleanEmail);
   }
@@ -621,7 +642,7 @@
       </div>
       <div class="body">${renderTab(active)}</div>
       <div class="nav">
-        <div class="nav-indicator" style="--nav-idx:${idx}"></div>
+        <div class="nav-indicator" style="--nav-idx:${idx}; --nav-count:${NAV.length}"></div>
         ${NAV.map((n) => `
           <button class="nav-item wv-btn ${n.id === active ? "active" : ""}" data-act="tab" data-tab="${n.id}">
             ${n.icon}<span>${n.label}</span>
@@ -636,6 +657,8 @@
     if (tab === "receive") return renderReceive();
     if (tab === "activity") return renderActivity();
     if (tab === "settings") return renderSettings();
+    if (tab === "info") return renderInfo();
+    if (tab === "referral") return renderReferral();
     return "";
   }
 
@@ -867,6 +890,90 @@
     `;
   }
 
+  function renderInfo() {
+    const points = [
+      "No address shown in this app belongs to you or anyone else.",
+      "You cannot deposit real cryptocurrency into this app.",
+      "You cannot withdraw real funds from this app.",
+      "All balances, transactions, and activity shown here are simulated for testing purposes only.",
+    ];
+    return `
+      <div class="back-header"><button class="back-btn wv-btn" data-act="tab" data-tab="dashboard">${ICONS.chevLeft}</button><span class="back-title">Info</span></div>
+      <div class="card" style="padding:18px 16px; margin-bottom:16px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+          <div style="width:34px; height:34px; border-radius:10px; background:var(--aurora); display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span style="font-family:var(--font-display); font-weight:650; font-size:14px; color:#0A0A12;">AV</span></div>
+          <div style="font-family:var(--font-display); font-size:16px;">Aster Vault</div>
+        </div>
+        <p style="font-size:12.5px; color:var(--text-2); line-height:1.6; margin:0;">A wallet interface prototype, built to explore design and product flows for a crypto wallet experience.</p>
+      </div>
+
+      <div class="card" style="padding:18px 16px; border-color:#E2878744;">
+        <div style="display:flex; align-items:center; gap:9px; margin-bottom:14px;">
+          <span style="color:var(--negative);">${ICONS.shield}</span>
+          <span style="font-family:var(--font-display); font-size:15px;">This is a test environment</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:11px;">
+          ${points.map((p) => `
+            <div style="display:flex; gap:10px; align-items:flex-start;">
+              <span style="width:5px; height:5px; border-radius:50%; background:var(--negative); flex-shrink:0; margin-top:6px;"></span>
+              <span style="font-size:12.5px; color:var(--text-2); line-height:1.55;">${p}</span>
+            </div>`).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderReferral() {
+    const account = acc();
+    const code = account?.referralCode || "";
+    const link = `${window.location.origin}${window.location.pathname}?ref=${code}`;
+    const invites = account?.referrals || [];
+    const benefits = [
+      "Priority support when you have questions",
+      "Early access to new features before general release",
+      "A more personalized experience as your network grows",
+    ];
+    return `
+      <div class="back-header"><button class="back-btn wv-btn" data-act="tab" data-tab="settings">${ICONS.chevLeft}</button><span class="back-title">Invite friends</span></div>
+
+      <div class="card" style="padding:20px 18px; margin-bottom:16px; text-align:center;">
+        <div style="width:44px; height:44px; border-radius:12px; background:var(--aurora); display:flex; align-items:center; justify-content:center; margin:0 auto 14px; color:#0A0A12;">${ICONS.users}</div>
+        <div style="font-family:var(--font-display); font-size:17px; margin-bottom:6px;">Your referral code</div>
+        <div style="font-family:var(--font-mono); font-size:26px; letter-spacing:4px; color:var(--violet); margin-bottom:16px;">${code}</div>
+        <button class="wv-btn" data-act="copy-ref-code" style="width:100%; padding:11px 0; border-radius:10px; border:1px solid var(--border); background:var(--surface); color:${ui.refCodeCopied ? "var(--jade)" : "var(--text)"}; font-size:12.5px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:7px;">${ui.refCodeCopied ? ICONS.check : ICONS.copy} ${ui.refCodeCopied ? "Copied" : "Copy code"}</button>
+      </div>
+
+      <label class="field-label">Shareable link</label>
+      <div style="display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 13px; margin-bottom:20px;">
+        <span style="flex:1; font-family:var(--font-mono); font-size:11.5px; word-break:break-all; color:var(--text-2);">${link}</span>
+        <button class="wv-btn" data-act="copy-ref-link" style="background:none; border:none; cursor:pointer; color:${ui.refLinkCopied ? "var(--jade)" : "var(--violet)"}; flex-shrink:0;">${ui.refLinkCopied ? ICONS.check : ICONS.copy}</button>
+      </div>
+
+      <div class="card" style="padding:18px 16px; margin-bottom:20px;">
+        <div class="eyebrow" style="margin-bottom:12px;">Why invite friends</div>
+        <div style="display:flex; flex-direction:column; gap:11px;">
+          ${benefits.map((b) => `
+            <div style="display:flex; gap:10px; align-items:flex-start;">
+              <span style="color:var(--jade); flex-shrink:0; margin-top:1px;">${ICONS.check}</span>
+              <span style="font-size:12.5px; color:var(--text-2); line-height:1.5;">${b}</span>
+            </div>`).join("")}
+        </div>
+      </div>
+
+      <div class="eyebrow">Your invites</div>
+      ${invites.length === 0
+        ? emptyState("No invites yet", "Share your code or link above — invites you send will show up here.")
+        : `<div class="asset-list">${invites.slice().reverse().map((inv) => `
+            <div class="asset-row">
+              <div style="width:36px; height:36px; border-radius:50%; background:var(--raised); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-size:13px; color:var(--violet); flex-shrink:0;">${(inv.name || "?").slice(0, 1).toUpperCase()}</div>
+              <div style="flex:1; min-width:0;">
+                <div class="asset-name">${inv.name}</div>
+                <div class="asset-amt">${relTime(inv.ts)}</div>
+              </div>
+            </div>`).join("")}</div>`}
+    `;
+  }
+
   function renderSettings() {
     return `
       <div class="back-header"><button class="back-btn wv-btn" data-act="tab" data-tab="dashboard">${ICONS.chevLeft}</button><span class="back-title">Settings</span></div>
@@ -875,7 +982,8 @@
         <label class="field-label">Network</label>
         <div style="padding:12px 13px; border-radius:12px; border:1px solid var(--azure); background:#6E9CF51A; color:var(--violet); font-size:13px; text-align:center; font-weight:500;">Aster Network — Connected</div>
       </div>
-      <button class="wv-btn" data-act="sign-out" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; padding:12px 0; border-radius:12px; border:1px solid var(--border); background:transparent; color:var(--negative); font-size:13.5px; margin-top:6px;">Sign out</button>
+      <button class="wv-btn" data-act="tab" data-tab="referral" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; padding:12px 0; border-radius:12px; border:1px solid var(--border); background:transparent; color:var(--text); font-size:13.5px; margin-top:6px;">${ICONS.users} Invite friends</button>
+      <button class="wv-btn" data-act="sign-out" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; padding:12px 0; border-radius:12px; border:1px solid var(--border); background:transparent; color:var(--negative); font-size:13.5px; margin-top:10px;">Sign out</button>
       <p style="font-size:11.5px; color:var(--text-3); line-height:1.6; margin-top:22px;">Your balances are securely stored and sync automatically across your devices.</p>
     `;
   }
@@ -954,6 +1062,8 @@
         else if (act === "send-done") { ui.sendStep = "form"; ui.sendAddress = ""; ui.sendAmount = ""; ui.tab = "dashboard"; render(); }
         else if (act === "receive-asset") { ui.receiveAssetId = el.dataset.id; render(); }
         else if (act === "copy-address") { const addr = acc()?.addresses?.[ui.receiveAssetId] || ""; navigator.clipboard?.writeText(addr).catch(() => {}); ui.receiveCopied = true; render(); showToast("Address copied"); setTimeout(() => { ui.receiveCopied = false; }, 1600); }
+        else if (act === "copy-ref-code") { navigator.clipboard?.writeText(acc()?.referralCode || "").catch(() => {}); ui.refCodeCopied = true; render(); showToast("Code copied"); setTimeout(() => { ui.refCodeCopied = false; }, 1600); }
+        else if (act === "copy-ref-link") { const link = `${window.location.origin}${window.location.pathname}?ref=${acc()?.referralCode || ""}`; navigator.clipboard?.writeText(link).catch(() => {}); ui.refLinkCopied = true; render(); showToast("Link copied"); setTimeout(() => { ui.refLinkCopied = false; }, 1600); }
         else if (act === "activity-filter") { ui.activityFilter = el.dataset.id; render(); }
         else if (act === "sign-out") { session = null; ui.tab = "dashboard"; render(); }
         else if (act === "auth-mode") { ui.authMode = el.dataset.mode; ui.authStep = "form"; ui.error = ""; render(); }

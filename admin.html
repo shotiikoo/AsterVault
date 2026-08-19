@@ -71,6 +71,10 @@
   .registered-tag { font-size: 9.5px; color: var(--jade); font-weight: 700; letter-spacing: .4px; display: inline-flex; align-items: center; gap: 3px; }
   .registered-tag .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--jade); display: inline-block; }
   .account-email { font-size: 11.5px; color: var(--text-3); font-family: var(--font-mono); margin-top: 1px; }
+  .referred-by { font-size: 10.5px; color: var(--jade); margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+  .invite-badge { font-size: 10.5px; color: var(--violet); background: #C3B4FF1A; padding: 2.5px 8px; border-radius: 999px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; position: relative; }
+  .invite-new-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--jade); box-shadow: 0 0 0 0 rgba(79,209,165,0.6); animation: invite-pulse 1.6s ease-in-out infinite; flex-shrink: 0; }
+  @keyframes invite-pulse { 0% { box-shadow: 0 0 0 0 rgba(79,209,165,0.55); } 70% { box-shadow: 0 0 0 6px rgba(79,209,165,0); } 100% { box-shadow: 0 0 0 0 rgba(79,209,165,0); } }
   .account-value { font-family: var(--font-mono); font-size: 15px; margin-left: auto; text-align: right; }
   .account-value .sub { font-size: 10.5px; color: var(--text-3); margin-top: 2px; }
   .chev { color: var(--text-3); transition: transform .25s ease; flex-shrink: 0; }
@@ -156,6 +160,7 @@
     trash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
     upload: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>',
     qr: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM14 21h.01M21 14h.01M17.5 17.5h3.5v3.5"/></svg>',
+    users: '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   };
 
   const fmtUSD = (n) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
@@ -292,6 +297,9 @@
   function renderAccount(id, acc) {
     const total = assetTotal(acc.assets);
     const open = openId === id;
+    const inviteCount = (acc.referrals || []).length;
+    const seenCount = acc.referralsSeenCount || 0;
+    const hasNewInvite = inviteCount > seenCount;
     return `
       <div class="account${open ? " open" : ""}" data-id="${id}">
         <div class="account-head" data-toggle="${id}">
@@ -299,7 +307,9 @@
           <div>
             <div class="account-name">${acc.name}</div>
             <div class="account-email">${acc.email}</div>
+            ${acc.referredBy ? `<div class="referred-by">↳ By ${acc.referredBy.name}</div>` : ""}
           </div>
+          ${inviteCount > 0 ? `<span class="invite-badge" title="${inviteCount} invited${hasNewInvite ? " · new since you last checked" : ""}">${hasNewInvite ? `<span class="invite-new-dot"></span>` : ""}${ICONS.users} ${inviteCount}</span>` : ""}
           <div class="account-value">${fmtUSD(total)}</div>
           <span class="chev">${ICONS.chevron}</span>
         </div>
@@ -374,7 +384,20 @@
   }
 
   function wireAccount(id) {
-    document.querySelector(`[data-toggle="${id}"]`).addEventListener("click", () => { openId = openId === id ? null : id; render(); });
+    document.querySelector(`[data-toggle="${id}"]`).addEventListener("click", () => {
+      const opening = openId !== id;
+      openId = opening ? id : null;
+      if (opening) {
+        const acc = db.accounts[id];
+        const inviteCount = (acc.referrals || []).length;
+        if (inviteCount > (acc.referralsSeenCount || 0)) {
+          acc.referralsSeenCount = inviteCount;
+          db.accounts[id] = acc;
+          saveDB();
+        }
+      }
+      render();
+    });
 
     const balanceInputs = document.querySelectorAll(`input[data-account="${id}"][data-asset]`);
     const updateLivePreview = () => {
