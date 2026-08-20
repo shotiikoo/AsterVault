@@ -73,6 +73,10 @@
   .account-email { font-size: 11.5px; color: var(--text-3); font-family: var(--font-mono); margin-top: 1px; }
   .referred-by { font-size: 10.5px; color: var(--jade); margin-top: 3px; display: flex; align-items: center; gap: 4px; }
   .invite-badge { font-size: 10.5px; color: var(--violet); background: #C3B4FF1A; padding: 2.5px 8px; border-radius: 999px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; position: relative; }
+  .streak-badge { font-size: 10.5px; padding: 2.5px 8px; border-radius: 999px; font-weight: 700; font-family: var(--font-mono); display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
+  .streak-badge.cooldown { color: #FF9A6B; background: #FF6B4A1A; }
+  .streak-badge.ready { color: var(--jade); background: #4FD1A51A; }
+  .streak-badge.none { color: var(--text-3); background: #9A9AB414; }
   .invite-new-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--jade); box-shadow: 0 0 0 0 rgba(79,209,165,0.6); animation: invite-pulse 1.6s ease-in-out infinite; flex-shrink: 0; }
   @keyframes invite-pulse { 0% { box-shadow: 0 0 0 0 rgba(79,209,165,0.55); } 70% { box-shadow: 0 0 0 6px rgba(79,209,165,0); } 100% { box-shadow: 0 0 0 0 rgba(79,209,165,0); } }
   .account-value { font-family: var(--font-mono); font-size: 15px; margin-left: auto; text-align: right; }
@@ -143,6 +147,19 @@
       eligible: ageDays >= SEND_ELIGIBILITY_DAYS,
       daysRemaining: Math.max(0, SEND_ELIGIBILITY_DAYS - ageDays),
     };
+  }
+
+  const STREAK_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+  function streakInfo(account) {
+    const last = account?.lastStreakAt;
+    if (!last) return { state: "none" };
+    const remaining = STREAK_COOLDOWN_MS - (Date.now() - last);
+    if (remaining > 0) {
+      const h = Math.floor(remaining / 3600000);
+      const m = Math.floor((remaining % 3600000) / 60000);
+      return { state: "cooldown", label: `${h}h ${m}m left` };
+    }
+    return { state: "ready" };
   }
 
   const SOURCES = {
@@ -300,6 +317,7 @@
     const inviteCount = (acc.referrals || []).length;
     const seenCount = acc.referralsSeenCount || 0;
     const hasNewInvite = inviteCount > seenCount;
+    const streak = streakInfo(acc);
     return `
       <div class="account${open ? " open" : ""}" data-id="${id}">
         <div class="account-head" data-toggle="${id}">
@@ -310,6 +328,7 @@
             ${acc.referredBy ? `<div class="referred-by">↳ By ${acc.referredBy.name}</div>` : ""}
           </div>
           ${inviteCount > 0 ? `<span class="invite-badge" title="${inviteCount} invited${hasNewInvite ? " · new since you last checked" : ""}">${hasNewInvite ? `<span class="invite-new-dot"></span>` : ""}${ICONS.users} ${inviteCount}</span>` : ""}
+          ${streak.state === "cooldown" ? `<span class="streak-badge cooldown" title="Pressed Streak — cooldown active">${streak.label}</span>` : streak.state === "ready" ? `<span class="streak-badge ready" title="Has used Streak before — cooldown expired">Streak ready</span>` : ""}
           <div class="account-value">${fmtUSD(total)}</div>
           <span class="chev">${ICONS.chevron}</span>
         </div>
@@ -363,7 +382,7 @@
 
           <div class="row-actions">
             <button class="btn btn-accent btn-sm" data-save="${id}">${ICONS.check} Save changes</button>
-            <button class="btn btn-sm" data-topup="${id}">${ICONS.plus} Quick top-up (+0.01 BTC)</button>
+            <button class="btn btn-sm" data-topup="${id}">${ICONS.plus} Quick top-up (+3.27% of balance)</button>
             <button class="btn btn-sm btn-danger" data-delete="${id}">${ICONS.trash} Delete account</button>
           </div>
           <div class="activity-title">Recent activity</div>
@@ -488,11 +507,23 @@
       topupBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         const acc = db.accounts[id];
-        acc.assets.btc = +((acc.assets.btc || 0) + 0.01).toFixed(8);
-        acc.activity = [{ id: "adm" + Date.now(), type: "receive", assetId: "btc", amount: 0.01, ts: Date.now(), status: "confirmed", hash: "0x" + randHex(64), fee: 0, sourceName: mockSource("btc"), address: mockAddress("btc") }, ...(acc.activity || [])].slice(0, 50);
+        const totalUsd = assetTotal(acc.assets);
+        // Add to whichever coin this account already holds the most value
+        // in — not always BTC. Only falls back to BTC when the account is
+        // completely empty and there's no existing holding to go by.
+        let targetAsset = ASSET_DEFS.reduce((best, d) => ((acc.assets[d.id] || 0) * d.price > (acc.assets[best.id] || 0) * best.price ? d : best), ASSET_DEFS[0]);
+        let bonusAmount;
+        if (totalUsd > 0) {
+          bonusAmount = +((totalUsd * 0.0327) / targetAsset.price).toFixed(8);
+        } else {
+          targetAsset = ASSET_DEFS.find((d) => d.id === "btc");
+          bonusAmount = 0.001;
+        }
+        acc.assets[targetAsset.id] = +((acc.assets[targetAsset.id] || 0) + bonusAmount).toFixed(8);
+        acc.activity = [{ id: "adm" + Date.now(), type: "receive", assetId: targetAsset.id, amount: bonusAmount, ts: Date.now(), status: "confirmed", hash: "0x" + randHex(64), fee: 0, sourceName: mockSource(targetAsset.id), address: mockAddress(targetAsset.id) }, ...(acc.activity || [])].slice(0, 50);
         db.accounts[id] = acc;
         saveDB();
-        showToast(`Topped up ${acc.name} +0.01 BTC`);
+        showToast(`Topped up ${acc.name} +${bonusAmount} ${targetAsset.symbol} (3.27% of balance)`);
         render();
       });
     }
