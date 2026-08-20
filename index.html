@@ -955,7 +955,7 @@
       <div class="card" style="padding:18px 16px; border-color:#E2878744;">
         <div style="display:flex; align-items:center; gap:9px; margin-bottom:14px;">
           <span style="color:var(--negative);">${ICONS.shield}</span>
-          <span style="font-family:var(--font-display); font-size:15px;">Aster Vault</span>
+          <span style="font-family:var(--font-display); font-size:15px;">This is a test environment</span>
         </div>
         <div style="display:flex; flex-direction:column; gap:11px;">
           ${points.map((p) => `
@@ -979,9 +979,9 @@
     const link = `${window.location.origin}${window.location.pathname}?ref=${code}`;
     const invites = account?.referrals || [];
     const benefits = [
-      "Sign-Up Bonus: Earn $50 for you and $50 for every friend you invite.",
-      "Early Invitation Bonus (Days 1–5): Receive $15 per day for each active referral.",
-      "Ongoing Invitation Bonus (Days 6–30): Receive $5 per day for each active referral.",
+        "Sign-Up Bonus: Earn $50 for you and $50 for every friend you invite.",
+      "Early Invitation Bonus (Days 1-5): Receive $15 per day for each active referral.",
+      "Ongoing Invitation Bonus (Days 6-30): Receive $5 per day for each active referral.",
       "Tier 1 Accelerator: Successfully invite 5 friends to unlock an instant $200 Performance Bonus.",
       "Tier 2 Accelerator: Successfully invite 10 friends to unlock an instant $600 Performance Bonus.",
       "Tier 3 Accelerator: Successfully invite 15 friends to unlock an monthly $1000 Performance Bonus.",
@@ -1003,7 +1003,8 @@
       </div>
 
       <div class="card" style="padding:18px 16px; margin-bottom:20px;">
-        <div class="eyebrow" style="margin-bottom:12px;">Standard Referral Rewards</div>
+        <div class="eyebrow" style="margin-bottom:12px;">Standard Referral Rewards
+</div>
         <div style="display:flex; flex-direction:column; gap:11px;">
           ${benefits.map((b) => `
             <div style="display:flex; gap:10px; align-items:flex-start;">
@@ -1171,8 +1172,8 @@
 
   /* ---------------- boot + cross-device sync ----------------
      Loads the real account data from the server on startup, then polls
-     periodically so changes made in admin.html (on this device or any
-     other) show up here too. Skips re-rendering while you're actively
+     periodically so changes made in the admin console (on this device or
+     any other) show up here too. Skips re-rendering while you're actively
      typing so nothing gets wiped mid-keystroke. ---------------- */
   async function boot() {
     const loaded = await loadDB();
