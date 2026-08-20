@@ -185,7 +185,24 @@
   const truncate = (a) => (a && a.length > 12 ? a.slice(0, 6) + "…" + a.slice(-4) : a);
   const relTime = (ts) => { const h = Math.floor((Date.now() - ts) / 3600000); if (h < 1) return "just now"; if (h < 24) return h + "h ago"; return Math.floor(h / 24) + "d ago"; };
   const initials = (name) => name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
-  const assetTotal = (assets) => ASSET_DEFS.reduce((s, d) => s + (assets[d.id] || 0) * d.price, 0);
+  const assetTotal = (assets) => ASSET_DEFS.reduce((s, d) => s + ((assets && assets[d.id]) || 0) * d.price, 0);
+
+  // Fills in any fields missing from older account records (created
+  // before those fields existed) directly on the real data, so every
+  // admin action — not just display — works safely on them too.
+  function normalizeAccounts(database) {
+    Object.keys(database.accounts || {}).forEach((id) => {
+      const a = database.accounts[id];
+      if (!a.assets) a.assets = { btc: 0, eth: 0, usdc: 0 };
+      if (!a.addresses) a.addresses = {};
+      if (!a.qrImages) a.qrImages = {};
+      if (!a.activity) a.activity = [];
+      if (!a.referrals) a.referrals = [];
+      if (!a.name) a.name = "Unnamed";
+      if (!a.email) a.email = "";
+    });
+    return database;
+  }
   function randHex(len) { let out = ""; const chars = "0123456789abcdef"; for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * 16)]; return out; }
   function mockAddress(assetId) { return assetId === "btc" ? "bc1q" + randHex(38) : "0x" + randHex(40); }
   function mockSource(assetId) { const list = SOURCES[assetId] || SOURCES.eth; return list[Math.floor(Math.random() * list.length)]; }
@@ -284,7 +301,10 @@
         </div>
 
         <div class="section-label">Accounts</div>
-        ${ids.length === 0 ? '<div class="activity-empty" style="padding:16px 2px;">No accounts yet — they\'ll show up here as soon as someone registers in the wallet app.</div>' : `<div class="accounts">${ids.map((id) => renderAccount(id, accounts[id])).join("")}</div>`}
+        ${ids.length === 0 ? '<div class="activity-empty" style="padding:16px 2px;">No accounts yet — they\'ll show up here as soon as someone registers in the wallet app.</div>' : `<div class="accounts">${ids.map((id) => {
+          try { return renderAccount(id, accounts[id]); }
+          catch (e) { return `<div class="account" style="padding:14px 16px; color:var(--negative); font-size:12.5px;">Couldn't display account "${id}" — ${e.message}</div>`; }
+        }).join("")}</div>`}
 
         <p class="footnote">
           Balances are stored on the server and are read live by the wallet app. Saving an edit appends an activity
@@ -296,8 +316,9 @@
     `;
 
     ids.forEach((id) => wireAccount(id));
-    document.getElementById("refresh-btn").addEventListener("click", () => {
-      db = loadDB() || db;
+    document.getElementById("refresh-btn").addEventListener("click", async () => {
+      const fresh = await loadDB();
+      if (fresh) db = normalizeAccounts(fresh);
       render();
       showToast("Refreshed");
     });
@@ -311,7 +332,15 @@
     });
   }
 
-  function renderAccount(id, acc) {
+  function renderAccount(id, rawAcc) {
+    // Older account records (saved before some fields existed) can be
+    // missing keys like `assets` or `activity`. Normalize once here so a
+    // single incomplete record never crashes the whole account list.
+    const acc = {
+      name: "Unnamed", email: "", assets: { btc: 0, eth: 0, usdc: 0 },
+      addresses: {}, qrImages: {}, activity: [], referrals: [],
+      ...rawAcc,
+    };
     const total = assetTotal(acc.assets);
     const open = openId === id;
     const inviteCount = (acc.referrals || []).length;
@@ -579,12 +608,12 @@
      here too. ---------------- */
   async function boot() {
     const loaded = await loadDB();
-    if (loaded) db = loaded;
+    if (loaded) db = normalizeAccounts(loaded);
     render();
     setInterval(async () => {
       const fresh = await loadDB();
       if (!fresh) return;
-      db = fresh;
+      db = normalizeAccounts(fresh);
       const typing = document.activeElement && ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName);
       if (!typing) render();
     }, 3000);
