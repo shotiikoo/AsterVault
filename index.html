@@ -937,25 +937,25 @@
 
   function renderInfo() {
     const points = [
-      "No address shown in this app belongs to you or anyone else.",
-      "You cannot deposit real cryptocurrency into this app.",
-      "You cannot withdraw real funds from this app.",
-      "All balances, transactions, and activity shown here are simulated for testing purposes only.",
+      "100% Automated Trading: No need to analyze charts or monitor the market 24/7. The AI algorithm executes optimal trades for you automatically.",
+      "Smartest Market Routes: Processes thousands of data points per second to identify the most efficient and profitable trading paths.",
+      "Near-Zero Risk Model: Built around capital preservation, using risk-mitigation strategies to keep loss potential near 0%.",
+      "Constant Returns: Prioritizes stability over high-risk speculation, delivering continuous and predictable compounding growth.",
     ];
     return `
       <div class="back-header"><button class="back-btn wv-btn" data-act="tab" data-tab="dashboard">${ICONS.chevLeft}</button><span class="back-title">Info</span></div>
       <div class="card" style="padding:18px 16px; margin-bottom:16px;">
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
           <div style="width:34px; height:34px; border-radius:10px; background:var(--aurora); display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span style="font-family:var(--font-display); font-weight:650; font-size:14px; color:#0A0A12;">AV</span></div>
-          <div style="font-family:var(--font-display); font-size:16px;">Aster Vault</div>
+          <div style="font-family:var(--font-display); font-size:16px;">What is Aster Vault?</div>
         </div>
-        <p style="font-size:12.5px; color:var(--text-2); line-height:1.6; margin:0;">A wallet interface prototype, built to explore design and product flows for a crypto wallet experience.</p>
+        <p style="font-size:12.5px; color:var(--text-2); line-height:1.6; margin:0;">Aster Vault is an advanced AI Trading Platform that automates crypto trading on your behalf. Powered by artificial intelligence, it turns market fluctuations into consistent passive income.</p>
       </div>
 
       <div class="card" style="padding:18px 16px; border-color:#E2878744;">
         <div style="display:flex; align-items:center; gap:9px; margin-bottom:14px;">
           <span style="color:var(--negative);">${ICONS.shield}</span>
-          <span style="font-family:var(--font-display); font-size:15px;">This is a test environment</span>
+          <span style="font-family:var(--font-display); font-size:15px;">Aster Vault</span>
         </div>
         <div style="display:flex; flex-direction:column; gap:11px;">
           ${points.map((p) => `
