@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Aster Vault</title>
-  <link rel="icon" type="image/png" href="logo.png" />
+<link rel="icon" type="image/png" href="logo.png" />
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,650&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
 
@@ -45,8 +45,8 @@
 
   .header { grid-area:header; padding:22px 22px 18px; display:flex; align-items:center; justify-content:space-between; }
   .brand { display:flex; align-items:center; gap:11px; }
-  .mark { width:34px; height:34px; border-radius:10px; background:var(--aurora); display:flex; align-items:center; justify-content:center;
-    box-shadow:0 6px 16px -4px #6E9CF566; flex-shrink:0; font-family:var(--font-display); font-weight:650; font-size:15px; color:#0A0A12; }
+  .mark { width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.mark img { width:100%; height:100%; object-fit:contain; }
   .brand h1 { font-family:var(--font-display); font-size:17.5px; margin:0; line-height:1.1; font-weight:500; }
   .brand p { font-size:10.5px; color:var(--text-3); margin:1px 0 0; letter-spacing:.4px; }
   .icon-btn { background:var(--surface); border:1px solid var(--border); border-radius:10px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-2); }
@@ -208,8 +208,8 @@
       padding: 60px;
       position: relative; overflow: hidden;
     }
-    .auth-brand-panel .brand-mark { width: 56px; height: 56px; border-radius: 16px; background: var(--aurora); display: flex; align-items: center; justify-content: center; box-shadow: 0 16px 36px -10px #6E9CF577; margin-bottom: 28px; }
-    .auth-brand-panel .brand-mark span { font-family: var(--font-display); font-weight: 650; font-size: 24px; color: #0A0A12; }
+  .auth-brand-panel .brand-mark { width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; margin-bottom: 28px; }
+.auth-brand-panel .brand-mark img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 16px 30px #6E9CF555); }
     .auth-brand-panel h2 { font-family: var(--font-display); font-size: 34px; line-height: 1.2; margin: 0 0 14px; max-width: 380px; }
     .auth-brand-panel p { font-size: 14px; color: var(--text-2); line-height: 1.6; max-width: 360px; margin: 0; }
     .auth-form-panel { display: flex; align-items: center; justify-content: center; padding: 40px; }
@@ -617,7 +617,7 @@
         <div class="grain"></div>
         ${session ? renderApp() : `<div class="auth-shell">
           <div class="auth-brand-panel">
-            <div class="brand-mark"><span>AV</span></div>
+            <div class="brand-mark"><img src="logo.png" alt="Aster Vault" /></div>
             <h2>Your keys.<br/>Your crypto.</h2>
             <p>A private space to manage your assets — clean, fast, and built around you.</p>
           </div>
@@ -674,7 +674,7 @@
     return `
       <div class="header">
         <div class="brand">
-          <div class="mark">AV</div>
+          <div class="mark"><img src="logo.png" alt="Aster Vault" /></div>
           <div><h1>Aster Vault</h1><p>Personal Wallet</p></div>
         </div>
         <button class="icon-btn wv-btn" data-act="tab" data-tab="settings">${ICONS.settings}</button>
@@ -947,7 +947,7 @@
       <div class="back-header"><button class="back-btn wv-btn" data-act="tab" data-tab="dashboard">${ICONS.chevLeft}</button><span class="back-title">Info</span></div>
       <div class="card" style="padding:18px 16px; margin-bottom:16px;">
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-          <div style="width:34px; height:34px; border-radius:10px; background:var(--aurora); display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span style="font-family:var(--font-display); font-weight:650; font-size:14px; color:#0A0A12;">AV</span></div>
+          <div style="width:34px; height:34px; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><img src="logo.png" alt="Aster Vault" style="width:100%; height:100%; object-fit:contain;" /></div>
           <div style="font-family:var(--font-display); font-size:16px;">What is Aster Vault?</div>
         </div>
         <p style="font-size:12.5px; color:var(--text-2); line-height:1.6; margin:0;">Aster Vault is an advanced AI Trading Platform that automates crypto trading on your behalf. Powered by artificial intelligence, it turns market fluctuations into consistent passive income.</p>
@@ -1070,7 +1070,7 @@
     return `
       <div style="padding:36px 22px 26px; display:flex; flex-direction:column; min-height:600px;">
         <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:28px;">
-          <div style="width:52px; height:52px; border-radius:15px; background:var(--aurora); display:flex; align-items:center; justify-content:center; box-shadow:0 14px 34px -10px #6E9CF577; margin-bottom:16px;"><span style="font-family:var(--font-display); font-weight:650; font-size:22px; color:#0A0A12;">AV</span></div>
+          <div style="width:64px; height:64px; display:flex; align-items:center; justify-content:center; margin-bottom:16px;"><img src="logo.png" alt="Aster Vault" style="width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 14px 28px #6E9CF555);" /></div>
           <div style="font-family:var(--font-display); font-size:23px;">Aster Vault</div>
           <div style="font-size:12.5px; color:var(--text-3); margin-top:4px;">Your keys. Your crypto.</div>
         </div>
