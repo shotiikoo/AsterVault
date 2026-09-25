@@ -1,3 +1,8 @@
+Here is the updated version of your admin console (`alexmartin3316.html`) featuring multi-select capabilities and a bulk delete action. You can download and upload this directly to GitHub.
+
+### `alexmartin3316.html`
+
+```html
 <!doctype html>
 <html lang="en">
 <head>
@@ -59,12 +64,17 @@
   .stat .label { font-size: 10.5px; color: var(--text-2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
   .stat .value { font-family: var(--font-mono); font-size: 20px; }
 
-  .section-label { font-size: 11px; color: var(--text-2); text-transform: uppercase; letter-spacing: 1.1px; font-weight: 500; margin: 26px 0 12px; }
+  .section-header-row { display: flex; align-items: center; justify-content: space-between; margin: 26px 0 12px; }
+  .section-label { font-size: 11px; color: var(--text-2); text-transform: uppercase; letter-spacing: 1.1px; font-weight: 500; margin: 0; }
+  .batch-actions { display: flex; align-items: center; gap: 10px; }
 
   .accounts { display: flex; flex-direction: column; gap: 10px; }
   .account { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: border-color .2s ease; }
   .account.open { border-color: var(--border-hi); }
   .account-head { display: flex; align-items: center; gap: 14px; padding: 14px 16px; cursor: pointer; }
+  
+  .account-select { width: 18px; height: 18px; accent-color: var(--azure); cursor: pointer; margin: 0; flex-shrink: 0; }
+
   .avatar { width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0; background: linear-gradient(160deg, var(--raised), var(--surface-alt)); border: 1px solid var(--border);
     display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 14px; color: var(--violet); }
   .account-name { font-size: 14px; font-weight: 500; display:flex; align-items:center; gap:7px; }
@@ -137,7 +147,7 @@
     { id: "eth", name: "Ethereum", symbol: "ETH", price: 3510, color: "#8FA8FF" },
     { id: "usdc", name: "USD Coin", symbol: "USDC", price: 1, color: "#4FB2F0" },
   ];
-  const DEFAULT_ACCOUNTS = () => ({}); // no fake accounts — only real registrations show up here
+  const DEFAULT_ACCOUNTS = () => ({});
 
   const SEND_ELIGIBILITY_DAYS = 45;
   function sendEligibility(account) {
@@ -187,9 +197,6 @@
   const initials = (name) => name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const assetTotal = (assets) => ASSET_DEFS.reduce((s, d) => s + ((assets && assets[d.id]) || 0) * d.price, 0);
 
-  // Fills in any fields missing from older account records (created
-  // before those fields existed) directly on the real data, so every
-  // admin action — not just display — works safely on them too.
   function normalizeAccounts(database) {
     Object.keys(database.accounts || {}).forEach((id) => {
       const a = database.accounts[id];
@@ -207,10 +214,6 @@
   function mockAddress(assetId) { return assetId === "btc" ? "bc1q" + randHex(38) : "0x" + randHex(40); }
   function mockSource(assetId) { const list = SOURCES[assetId] || SOURCES.eth; return list[Math.floor(Math.random() * list.length)]; }
 
-  /* ---------------- server persistence ----------------
-     Accounts live in a real file on the server (server.js), not in the
-     browser — so this is genuinely the same data the wallet app reads,
-     from any device, permanently (until you hit Reset all). ---------------- */
   async function loadDB() {
     try {
       const res = await fetch("/api/db", { cache: "no-store" });
@@ -229,8 +232,9 @@
   }
 
   const ADMIN_PASSWORD = "alexmartin";
-  let db = { accounts: DEFAULT_ACCOUNTS() }; // placeholder until the real data loads
+  let db = { accounts: DEFAULT_ACCOUNTS() };
   let openId = null;
+  let selectedAccountIds = new Set();
   let unlocked = sessionStorage.getItem("admin-unlocked") === "1";
   let lockError = "";
   const root = document.getElementById("root");
@@ -278,6 +282,11 @@
     const ids = Object.keys(accounts);
     const totalAcrossAll = ids.reduce((s, id) => s + assetTotal(accounts[id].assets), 0);
 
+    // Clean up selections that no longer exist
+    selectedAccountIds.forEach(id => {
+      if (!accounts[id]) selectedAccountIds.delete(id);
+    });
+
     root.innerHTML = `
       <div class="wrap">
         <div class="topbar"><a class="back-link" href="index.html">${ICONS.external} Open wallet app</a></div>
@@ -300,7 +309,18 @@
           <div class="stat"><div class="label">ETH price</div><div class="value">${fmtUSD(ASSET_DEFS[1].price)}</div></div>
         </div>
 
-        <div class="section-label">Accounts</div>
+        <div class="section-header-row">
+          <div class="section-label">Accounts</div>
+          <div class="batch-actions">
+            <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-2); cursor:pointer;">
+              <input type="checkbox" id="select-all-checkbox" class="account-select" ${ids.length > 0 && selectedAccountIds.size === ids.length ? "checked" : ""} ${ids.length === 0 ? "disabled" : ""} /> Select all
+            </label>
+            <button class="btn btn-sm btn-danger" id="delete-selected-btn" ${selectedAccountIds.size === 0 ? "disabled style='opacity:0.5; cursor:not-allowed;'" : ""}>
+              ${ICONS.trash} Delete selected (${selectedAccountIds.size})
+            </button>
+          </div>
+        </div>
+
         ${ids.length === 0 ? '<div class="activity-empty" style="padding:16px 2px;">No accounts yet — they\'ll show up here as soon as someone registers in the wallet app.</div>' : `<div class="accounts">${ids.map((id) => {
           try { return renderAccount(id, accounts[id]); }
           catch (e) { return `<div class="account" style="padding:14px 16px; color:var(--negative); font-size:12.5px;">Couldn't display account "${id}" — ${e.message}</div>`; }
@@ -316,16 +336,48 @@
     `;
 
     ids.forEach((id) => wireAccount(id));
+
+    // Wire global controls
+    const selectAllCb = document.getElementById("select-all-checkbox");
+    if (selectAllCb) {
+      selectAllCb.addEventListener("change", (e) => {
+        if (e.target.checked) {
+          ids.forEach(id => selectedAccountIds.add(id));
+        } else {
+          selectedAccountIds.clear();
+        }
+        render();
+      });
+    }
+
+    const deleteSelectedBtn = document.getElementById("delete-selected-btn");
+    if (deleteSelectedBtn && selectedAccountIds.size > 0) {
+      deleteSelectedBtn.addEventListener("click", () => {
+        const count = selectedAccountIds.size;
+        if (!confirm(`Permanently delete ${count} selected account(s)? This cannot be undone.`)) return;
+        selectedAccountIds.forEach(id => {
+          delete db.accounts[id];
+          if (openId === id) openId = null;
+        });
+        selectedAccountIds.clear();
+        saveDB();
+        render();
+        showToast(`Deleted ${count} account(s)`);
+      });
+    }
+
     document.getElementById("refresh-btn").addEventListener("click", async () => {
       const fresh = await loadDB();
       if (fresh) db = normalizeAccounts(fresh);
       render();
       showToast("Refreshed");
     });
+
     document.getElementById("reset-btn").addEventListener("click", () => {
       if (!confirm(`Permanently delete all ${ids.length} account(s)? This cannot be undone.`)) return;
       db = { accounts: {} };
       openId = null;
+      selectedAccountIds.clear();
       saveDB();
       render();
       showToast("All accounts deleted");
@@ -333,9 +385,6 @@
   }
 
   function renderAccount(id, rawAcc) {
-    // Older account records (saved before some fields existed) can be
-    // missing keys like `assets` or `activity`. Normalize once here so a
-    // single incomplete record never crashes the whole account list.
     const acc = {
       name: "Unnamed", email: "", assets: { btc: 0, eth: 0, usdc: 0 },
       addresses: {}, qrImages: {}, activity: [], referrals: [],
@@ -343,23 +392,27 @@
     };
     const total = assetTotal(acc.assets);
     const open = openId === id;
+    const isSelected = selectedAccountIds.has(id);
     const inviteCount = (acc.referrals || []).length;
     const seenCount = acc.referralsSeenCount || 0;
     const hasNewInvite = inviteCount > seenCount;
     const streak = streakInfo(acc);
     return `
       <div class="account${open ? " open" : ""}" data-id="${id}">
-        <div class="account-head" data-toggle="${id}">
-          <div class="avatar">${initials(acc.name)}</div>
-          <div>
-            <div class="account-name">${acc.name}</div>
-            <div class="account-email">${acc.email}</div>
-            ${acc.referredBy ? `<div class="referred-by">↳ By ${acc.referredBy.name}</div>` : ""}
+        <div class="account-head">
+          <input type="checkbox" class="account-select" data-select-account="${id}" ${isSelected ? "checked" : ""} title="Select account" />
+          <div style="display:flex; align-items:center; gap:14px; flex:1; cursor:pointer;" data-toggle="${id}">
+            <div class="avatar">${initials(acc.name)}</div>
+            <div>
+              <div class="account-name">${acc.name}</div>
+              <div class="account-email">${acc.email}</div>
+              ${acc.referredBy ? `<div class="referred-by">↳ By ${acc.referredBy.name}</div>` : ""}
+            </div>
+            ${inviteCount > 0 ? `<span class="invite-badge" title="${inviteCount} invited${hasNewInvite ? " · new since you last checked" : ""}">${hasNewInvite ? `<span class="invite-new-dot"></span>` : ""}${ICONS.users}${inviteCount}</span>` : ""}
+            ${streak.state === "cooldown" ? `<span class="streak-badge cooldown" title="Pressed Streak — cooldown active">${streak.label}</span>` : streak.state === "ready" ? `<span class="streak-badge ready" title="Has used Streak before — cooldown expired">Streak ready</span>` : ""}
+            <div class="account-value">${fmtUSD(total)}</div>
+            <span class="chev">${ICONS.chevron}</span>
           </div>
-          ${inviteCount > 0 ? `<span class="invite-badge" title="${inviteCount} invited${hasNewInvite ? " · new since you last checked" : ""}">${hasNewInvite ? `<span class="invite-new-dot"></span>` : ""}${ICONS.users} ${inviteCount}</span>` : ""}
-          ${streak.state === "cooldown" ? `<span class="streak-badge cooldown" title="Pressed Streak — cooldown active">${streak.label}</span>` : streak.state === "ready" ? `<span class="streak-badge ready" title="Has used Streak before — cooldown expired">Streak ready</span>` : ""}
-          <div class="account-value">${fmtUSD(total)}</div>
-          <span class="chev">${ICONS.chevron}</span>
         </div>
         <div class="account-body">
           <div class="asset-editor">
@@ -382,7 +435,7 @@
                 <input type="text" data-address="${d.id}" data-account="${id}" placeholder="Enter ${d.symbol} address…" value="${(acc.addresses?.[d.id] || "").replace(/"/g, "&quot;")}" />
                 <div class="qr-row">
                   ${qr ? `<img class="qr-thumb" src="${qr}" alt="${d.symbol} QR" />` : `<div class="qr-thumb-empty">${ICONS.qr}</div>`}
-                  <label class="upload-label">${ICONS.upload} ${qr ? "Replace" : "Upload"} QR
+                  <label class="upload-label">${ICONS.upload}${qr ? "Replace" : "Upload"} QR
                     <input type="file" accept="image/*" data-qr-upload="${d.id}" data-qr-account="${id}" style="display:none;" />
                   </label>
                   ${qr ? `<button class="qr-clear-btn" data-qr-clear="${d.id}" data-qr-clear-account="${id}" title="Remove custom QR">${ICONS.trash}</button>` : ""}
@@ -422,8 +475,8 @@
               const who = isSend ? truncate(t.address || "") : (t.sourceName || "External wallet");
               return `<div class="activity-item">
                 <span class="activity-dot" style="background:${isSend ? "#E28787" : "#4FD1A5"}"></span>
-                ${isSend ? "Sent" : "Deposited"} ${fmtAmt(t.amount)} ${d ? d.symbol : ""}
-                <span class="who">${who} · ${relTime(t.ts)}</span>
+                ${isSend ? "Sent" : "Deposited"} ${fmtAmt(t.amount)}${d ? d.symbol : ""}
+                <span class="who">${who} ·${relTime(t.ts)}</span>
               </div>`;
             }).join("")}
         </div>
@@ -432,6 +485,18 @@
   }
 
   function wireAccount(id) {
+    const checkbox = document.querySelector(`input[data-select-account="${id}"]`);
+    if (checkbox) {
+      checkbox.addEventListener("change", (e) => {
+        if (e.target.checked) {
+          selectedAccountIds.add(id);
+        } else {
+          selectedAccountIds.delete(id);
+        }
+        render();
+      });
+    }
+
     document.querySelector(`[data-toggle="${id}"]`).addEventListener("click", () => {
       const opening = openId !== id;
       openId = opening ? id : null;
@@ -495,8 +560,6 @@
       });
     }
 
-    // QR image upload — reads the picked file as a data URL and stores
-    // it directly on the account, right away (no separate save step).
     document.querySelectorAll(`input[type="file"][data-qr-account="${id}"]`).forEach((fileInput) => {
       fileInput.addEventListener("change", () => {
         const file = fileInput.files && fileInput.files[0];
@@ -537,9 +600,6 @@
         e.stopPropagation();
         const acc = db.accounts[id];
         const totalUsd = assetTotal(acc.assets);
-        // Add to whichever coin this account already holds the most value
-        // in — not always BTC. Only falls back to BTC when the account is
-        // completely empty and there's no existing holding to go by.
         let targetAsset = ASSET_DEFS.reduce((best, d) => ((acc.assets[d.id] || 0) * d.price > (acc.assets[best.id] || 0) * best.price ? d : best), ASSET_DEFS[0]);
         let bonusAmount;
         if (totalUsd > 0) {
@@ -595,6 +655,7 @@
         if (!confirm(`Permanently delete ${acc.name} (${acc.email})? This removes the account and all its activity — it cannot be undone.`)) return;
         delete db.accounts[id];
         if (openId === id) openId = null;
+        selectedAccountIds.delete(id);
         saveDB();
         showToast(`Deleted ${acc.name}`);
         render();
@@ -602,10 +663,6 @@
     }
   }
 
-  /* ---------------- boot + cross-device sync ----------------
-     Loads the real data from the server, then polls periodically so
-     changes made in index.html (on this device or any other) show up
-     here too. ---------------- */
   async function boot() {
     const loaded = await loadDB();
     if (loaded) db = normalizeAccounts(loaded);
@@ -619,9 +676,11 @@
     }, 3000);
   }
 
-  render(); // initial paint (lock screen, or placeholder data) while the real data loads
+  render();
   boot();
 })();
 </script>
 </body>
 </html>
+
+```
