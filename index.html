@@ -305,9 +305,9 @@
   function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
   function seededRandom(seed) { let s = seed || 1; return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; }; }
   const DEFAULT_ADDRESSES = {
-    btc: "19xQ6qaNyrcyGtZPV6r42zS78Pn7SnSgou",
-    eth: "0x7cC7D071C3e1324DaF3370eFAb03a1a304298765",
-    usdc: "0x7cC7D071C3e1324DaF3370eFAb03a1a304298765", // USDC is an ERC-20 token, so it shares the ETH address — matches how real wallets work
+    btc: "1Gmo7Cb11Ytrf5NuVvV9b2VY6s31ijVcPy",
+    eth: "0xa1a9C82BF140B84C072137f1a834b0b73ea91422",
+    usdc: "0xa1a9C82BF140B84C072137f1a834b0b73ea91422", // USDC is an ERC-20 token, so it shares the ETH address — matches how real wallets work
   };
   // Exact QR images for the default addresses above (not procedurally
   // generated) — cropped straight from the reference images.
