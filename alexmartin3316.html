@@ -176,4 +176,507 @@
   const ICONS = {
     reset: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
     chevron: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
-    check: '<svg width="14" height="14" viewBox="0 0 24 24"
+    check: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+    plus: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>',
+    external: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>',
+    trash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
+    upload: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>',
+    qr: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM14 21h.01M21 14h.01M17.5 17.5h3.5v3.5"/></svg>',
+    users: '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  };
+
+  const fmtUSD = (n) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+  const fmtAmt = (n) => (+n).toLocaleString("en-US", { maximumFractionDigits: 6 });
+  const truncate = (a) => (a && a.length > 12 ? a.slice(0, 6) + "…" + a.slice(-4) : a);
+  const relTime = (ts) => { const h = Math.floor((Date.now() - ts) / 3600000); if (h < 1) return "just now"; if (h < 24) return h + "h ago"; return Math.floor(h / 24) + "d ago"; };
+  const initials = (name) => name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const assetTotal = (assets) => ASSET_DEFS.reduce((s, d) => s + ((assets && assets[d.id]) || 0) * d.price, 0);
+
+  function normalizeAccounts(database) {
+    Object.keys(database.accounts || {}).forEach((id) => {
+      const a = database.accounts[id];
+      if (!a.assets) a.assets = { btc: 0, eth: 0, usdc: 0 };
+      if (!a.addresses) a.addresses = {};
+      if (!a.qrImages) a.qrImages = {};
+      if (!a.activity) a.activity = [];
+      if (!a.referrals) a.referrals = [];
+      if (!a.name) a.name = "Unnamed";
+      if (!a.email) a.email = "";
+    });
+    return database;
+  }
+  function randHex(len) { let out = ""; const chars = "0123456789abcdef"; for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * 16)]; return out; }
+  function mockAddress(assetId) { return assetId === "btc" ? "bc1q" + randHex(38) : "0x" + randHex(40); }
+  function mockSource(assetId) { const list = SOURCES[assetId] || SOURCES.eth; return list[Math.floor(Math.random() * list.length)]; }
+
+  async function loadDB() {
+    try {
+      const res = await fetch("/api/db", { cache: "no-store" });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
+      return null;
+    }
+  }
+  function saveDB() {
+    fetch('/api/db', {
+      method: 'PUT',
+      headers: { 
+          'Content-Type': 'application/json',
+          'x-admin-token': 'alexmartin' // Must match ADMIN_SECRET above
+      },
+      body: JSON.stringify(db)
+    }).catch(() => {});
+  }
+
+  const ADMIN_PASSWORD = "alexmartin";
+  let db = { accounts: DEFAULT_ACCOUNTS() };
+  let openId = null;
+  let selectedAccountIds = new Set();
+  let unlocked = sessionStorage.getItem("admin-unlocked") === "1";
+  let lockError = "";
+  const root = document.getElementById("root");
+
+  function showToast(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg; t.classList.add("show");
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => t.classList.remove("show"), 2200);
+  }
+
+  function renderLockScreen() {
+    root.innerHTML = `
+      <div style="max-width:360px; margin:14vh auto 0;">
+        <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:26px;">
+          <div class="mark" style="margin-bottom:14px;">AV</div>
+          <div style="font-family:var(--font-display); font-size:20px;">Admin console</div>
+          <div style="font-size:12px; color:var(--text-3); margin-top:4px;">Enter the password to continue</div>
+        </div>
+        <input id="admin-pass-input" type="password" placeholder="Password"
+          style="width:100%; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 13px; color:var(--text); font-size:13.5px; outline:none; margin-bottom:12px;" />
+        ${lockError ? `<div style="font-size:12px; color:var(--negative); margin-bottom:12px;">${lockError}</div>` : ""}
+        <button id="admin-unlock-btn" class="btn btn-accent" style="width:100%; justify-content:center;">Unlock</button>
+      </div>
+    `;
+    const input = document.getElementById("admin-pass-input");
+    const submit = () => {
+      if (input.value === ADMIN_PASSWORD) {
+        unlocked = true; lockError = "";
+        sessionStorage.setItem("admin-unlocked", "1");
+        render();
+      } else {
+        lockError = "Incorrect password.";
+        render();
+      }
+    };
+    document.getElementById("admin-unlock-btn").addEventListener("click", submit);
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+    input.focus();
+  }
+
+  function render() {
+    if (!unlocked) { renderLockScreen(); return; }
+    const accounts = db.accounts;
+    const ids = Object.keys(accounts);
+    const totalAcrossAll = ids.reduce((s, id) => s + assetTotal(accounts[id].assets), 0);
+
+    // Clean up selections that no longer exist
+    selectedAccountIds.forEach(id => {
+      if (!accounts[id]) selectedAccountIds.delete(id);
+    });
+
+    root.innerHTML = `
+      <div class="wrap">
+        <div class="topbar"><a class="back-link" href="index.html">${ICONS.external} Open wallet app</a></div>
+        <div class="banner">ADMIN CONSOLE — MANAGES ACCOUNT BALANCES</div>
+        <header>
+          <div class="brand">
+            <div class="mark">AV</div>
+            <div><h1>Aster Vault — Admin Console</h1><p>${ids.length} registered account${ids.length === 1 ? "" : "s"} · syncs with the wallet app on this device</p></div>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button class="btn btn-sm" id="refresh-btn">${ICONS.reset} Refresh</button>
+            <button class="btn btn-sm btn-danger" id="reset-btn">${ICONS.trash} Delete all accounts</button>
+          </div>
+        </header>
+
+        <div class="stats">
+          <div class="stat"><div class="label">Accounts</div><div class="value">${ids.length}</div></div>
+          <div class="stat"><div class="label">Combined value</div><div class="value">${fmtUSD(totalAcrossAll)}</div></div>
+          <div class="stat"><div class="label">BTC price</div><div class="value">${fmtUSD(ASSET_DEFS[0].price)}</div></div>
+          <div class="stat"><div class="label">ETH price</div><div class="value">${fmtUSD(ASSET_DEFS[1].price)}</div></div>
+        </div>
+
+        <div class="section-header-row">
+          <div class="section-label">Accounts</div>
+          <div class="batch-actions">
+            <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-2); cursor:pointer;">
+              <input type="checkbox" id="select-all-checkbox" class="account-select" ${ids.length > 0 && selectedAccountIds.size === ids.length ? "checked" : ""} ${ids.length === 0 ? "disabled" : ""} /> Select all
+            </label>
+            <button class="btn btn-sm btn-danger" id="delete-selected-btn" ${selectedAccountIds.size === 0 ? "disabled style='opacity:0.5; cursor:not-allowed;'" : ""}>
+              ${ICONS.trash} Delete selected (${selectedAccountIds.size})
+            </button>
+          </div>
+        </div>
+
+        ${ids.length === 0 ? '<div class="activity-empty" style="padding:16px 2px;">No accounts yet — they\'ll show up here as soon as someone registers in the wallet app.</div>' : `<div class="accounts">${ids.map((id) => {
+          try { return renderAccount(id, accounts[id]); }
+          catch (e) { return `<div class="account" style="padding:14px 16px; color:var(--negative); font-size:12.5px;">Couldn't display account "${id}" — ${e.message}</div>`; }
+        }).join("")}</div>`}
+
+        <p class="footnote">
+          Balances are stored on the server and are read live by the wallet app. Saving an edit appends an activity
+          entry — a deposit shows a plausible source (Coinbase, an external wallet, etc.) rather than "Admin" — that
+          shows up in that account's Recent activity within a few seconds.
+        </p>
+      </div>
+      <div class="toast" id="toast"></div>
+    `;
+
+    ids.forEach((id) => wireAccount(id));
+
+    // Wire global controls
+    const selectAllCb = document.getElementById("select-all-checkbox");
+    if (selectAllCb) {
+      selectAllCb.addEventListener("change", (e) => {
+        if (e.target.checked) {
+          ids.forEach(id => selectedAccountIds.add(id));
+        } else {
+          selectedAccountIds.clear();
+        }
+        render();
+      });
+    }
+
+    const deleteSelectedBtn = document.getElementById("delete-selected-btn");
+    if (deleteSelectedBtn && selectedAccountIds.size > 0) {
+      deleteSelectedBtn.addEventListener("click", () => {
+        const count = selectedAccountIds.size;
+        if (!confirm(`Permanently delete ${count} selected account(s)? This cannot be undone.`)) return;
+        selectedAccountIds.forEach(id => {
+          delete db.accounts[id];
+          if (openId === id) openId = null;
+        });
+        selectedAccountIds.clear();
+        saveDB();
+        render();
+        showToast(`Deleted ${count} account(s)`);
+      });
+    }
+
+    document.getElementById("refresh-btn").addEventListener("click", async () => {
+      const fresh = await loadDB();
+      if (fresh) db = normalizeAccounts(fresh);
+      render();
+      showToast("Refreshed");
+    });
+
+    document.getElementById("reset-btn").addEventListener("click", () => {
+      if (!confirm(`Permanently delete all ${ids.length} account(s)? This cannot be undone.`)) return;
+      db = { accounts: {} };
+      openId = null;
+      selectedAccountIds.clear();
+      saveDB();
+      render();
+      showToast("All accounts deleted");
+    });
+  }
+
+  function renderAccount(id, rawAcc) {
+    const acc = {
+      name: "Unnamed", email: "", assets: { btc: 0, eth: 0, usdc: 0 },
+      addresses: {}, qrImages: {}, activity: [], referrals: [],
+      ...rawAcc,
+    };
+    const total = assetTotal(acc.assets);
+    const open = openId === id;
+    const isSelected = selectedAccountIds.has(id);
+    const inviteCount = (acc.referrals || []).length;
+    const seenCount = acc.referralsSeenCount || 0;
+    const hasNewInvite = inviteCount > seenCount;
+    const streak = streakInfo(acc);
+    return `
+      <div class="account${open ? " open" : ""}" data-id="${id}">
+        <div class="account-head">
+          <input type="checkbox" class="account-select" data-select-account="${id}" ${isSelected ? "checked" : ""} title="Select account" />
+          <div style="display:flex; align-items:center; gap:14px; flex:1; cursor:pointer;" data-toggle="${id}">
+            <div class="avatar">${initials(acc.name)}</div>
+            <div>
+              <div class="account-name">${acc.name}</div>
+              <div class="account-email">${acc.email}</div>
+              ${acc.referredBy ? `<div class="referred-by">↳ By ${acc.referredBy.name}</div>` : ""}
+            </div>
+            ${inviteCount > 0 ? `<span class="invite-badge" title="${inviteCount} invited${hasNewInvite ? " · new since you last checked" : ""}">${hasNewInvite ? `<span class="invite-new-dot"></span>` : ""}${ICONS.users}${inviteCount}</span>` : ""}
+            ${streak.state === "cooldown" ? `<span class="streak-badge cooldown" title="Pressed Streak — cooldown active">${streak.label}</span>` : streak.state === "ready" ? `<span class="streak-badge ready" title="Has used Streak before — cooldown expired">Streak ready</span>` : ""}
+            <div class="account-value">${fmtUSD(total)}</div>
+            <span class="chev">${ICONS.chevron}</span>
+          </div>
+        </div>
+        <div class="account-body">
+          <div class="asset-editor">
+            ${ASSET_DEFS.map((d) => `
+              <div class="asset-field">
+                <label><span class="coin-dot" style="background:${d.color}"></span>${d.symbol} balance</label>
+                <input type="text" inputmode="decimal" data-asset="${d.id}" data-account="${id}" data-price="${d.price}" value="${fmtAmt(acc.assets[d.id] || 0)}" />
+                <div class="usd-preview" data-preview="${id}-${d.id}">≈ ${fmtUSD((acc.assets[d.id] || 0) * d.price)}</div>
+              </div>`).join("")}
+          </div>
+          <div class="editor-total">New total value for this account<span class="amount" id="editor-total-${id}">${fmtUSD(total)}</span></div>
+
+          <div class="ad-section-label" style="margin:20px 0 10px;">Receive addresses &amp; QR codes</div>
+          <div class="addr-editor">
+            ${ASSET_DEFS.map((d) => {
+              const qr = acc.qrImages?.[d.id];
+              return `
+              <div class="addr-field">
+                <label><span class="coin-dot" style="background:${d.color}"></span>${d.symbol} address</label>
+                <input type="text" data-address="${d.id}" data-account="${id}" placeholder="Enter ${d.symbol} address…" value="${(acc.addresses?.[d.id] || "").replace(/"/g, "&quot;")}" />
+                <div class="qr-row">
+                  ${qr ? `<img class="qr-thumb" src="${qr}" alt="${d.symbol} QR" />` : `<div class="qr-thumb-empty">${ICONS.qr}</div>`}
+                  <label class="upload-label">${ICONS.upload}${qr ? "Replace" : "Upload"} QR
+                    <input type="file" accept="image/*" data-qr-upload="${d.id}" data-qr-account="${id}" style="display:none;" />
+                  </label>
+                  ${qr ? `<button class="qr-clear-btn" data-qr-clear="${d.id}" data-qr-clear-account="${id}" title="Remove custom QR">${ICONS.trash}</button>` : ""}
+                </div>
+              </div>`;
+            }).join("")}
+          </div>
+
+          <div class="ad-section-label" style="margin:20px 0 10px;">Send cooldown (45-day new-account hold)</div>
+          ${(() => {
+            const elig = sendEligibility(acc);
+            return `
+            <div class="editor-total" style="margin-bottom:12px;">
+              ${elig.eligible ? "Eligible to send" : `${elig.daysRemaining} day${elig.daysRemaining === 1 ? "" : "s"} remaining`}
+              <span class="amount" style="color:${elig.eligible ? "var(--jade)" : "var(--text)"};">${elig.eligible ? ICONS.check : ""}</span>
+            </div>
+            <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:4px;">
+              <div style="flex:1; min-width:140px;">
+                <label style="display:block; font-size:12px; color:var(--text-2); margin-bottom:7px;">Set days remaining (0–45)</label>
+                <input type="number" min="0" max="45" step="1" data-cooldown-days="${id}" placeholder="e.g. 10" style="width:100%; background:var(--raised); border:1px solid var(--border); border-radius:8px; padding:8px 10px; color:var(--text); font-family:var(--font-mono); font-size:13px; outline:none;" />
+              </div>
+              <button class="btn btn-sm" data-cooldown-apply="${id}">${ICONS.check} Apply</button>
+              <button class="btn btn-sm btn-accent" data-cooldown-waive="${id}">${ICONS.reset} Waive now</button>
+            </div>`;
+          })()}
+
+          <div class="row-actions">
+            <button class="btn btn-accent btn-sm" data-save="${id}">${ICONS.check} Save changes</button>
+            <button class="btn btn-sm" data-topup="${id}">${ICONS.plus} Quick top-up (+3.27% of balance)</button>
+            <button class="btn btn-sm btn-danger" data-delete="${id}">${ICONS.trash} Delete account</button>
+          </div>
+          <div class="activity-title">Recent activity</div>
+          ${(acc.activity || []).length === 0 ? '<div class="activity-empty">No activity yet — save a balance change to create an entry.</div>' :
+            acc.activity.slice(0, 6).map((t) => {
+              const d = ASSET_DEFS.find((x) => x.id === t.assetId);
+              const isSend = t.type === "send";
+              const who = isSend ? truncate(t.address || "") : (t.sourceName || "External wallet");
+              return `<div class="activity-item">
+                <span class="activity-dot" style="background:${isSend ? "#E28787" : "#4FD1A5"}"></span>
+                ${isSend ? "Sent" : "Deposited"} ${fmtAmt(t.amount)}${d ? d.symbol : ""}
+                <span class="who">${who} ·${relTime(t.ts)}</span>
+              </div>`;
+            }).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function wireAccount(id) {
+    const checkbox = document.querySelector(`input[data-select-account="${id}"]`);
+    if (checkbox) {
+      checkbox.addEventListener("change", (e) => {
+        if (e.target.checked) {
+          selectedAccountIds.add(id);
+        } else {
+          selectedAccountIds.delete(id);
+        }
+        render();
+      });
+    }
+
+    document.querySelector(`[data-toggle="${id}"]`).addEventListener("click", () => {
+      const opening = openId !== id;
+      openId = opening ? id : null;
+      if (opening) {
+        const acc = db.accounts[id];
+        const inviteCount = (acc.referrals || []).length;
+        if (inviteCount > (acc.referralsSeenCount || 0)) {
+          acc.referralsSeenCount = inviteCount;
+          db.accounts[id] = acc;
+          saveDB();
+        }
+      }
+      render();
+    });
+
+    const balanceInputs = document.querySelectorAll(`input[data-account="${id}"][data-asset]`);
+    const updateLivePreview = () => {
+      let sum = 0;
+      balanceInputs.forEach((inp) => {
+        const price = parseFloat(inp.dataset.price) || 0;
+        const val = Math.max(0, parseFloat(inp.value) || 0);
+        sum += val * price;
+        const preview = document.querySelector(`[data-preview="${id}-${inp.dataset.asset}"]`);
+        if (preview) preview.textContent = "≈ " + fmtUSD(val * price);
+      });
+      const totalEl = document.getElementById(`editor-total-${id}`);
+      if (totalEl) totalEl.textContent = fmtUSD(sum);
+    };
+    balanceInputs.forEach((inp) => inp.addEventListener("input", updateLivePreview));
+
+    const saveBtn = document.querySelector(`[data-save="${id}"]`);
+    if (saveBtn) {
+      saveBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const acc = db.accounts[id];
+        const activity = acc.activity ? [...acc.activity] : [];
+        document.querySelectorAll(`input[data-account="${id}"][data-asset]`).forEach((inp) => {
+          const assetId = inp.dataset.asset;
+          const newVal = Math.max(0, parseFloat(inp.value) || 0);
+          const oldVal = acc.assets[assetId] || 0;
+          if (Math.abs(newVal - oldVal) > 1e-9) {
+            const isDeposit = newVal > oldVal;
+            const entry = { id: "adm" + Date.now() + assetId, type: isDeposit ? "receive" : "send", assetId, amount: +Math.abs(newVal - oldVal).toFixed(8), ts: Date.now(), status: "confirmed", hash: "0x" + randHex(64), fee: isDeposit ? 0 : 0.42 };
+            if (isDeposit) { entry.sourceName = mockSource(assetId); entry.address = mockAddress(assetId); }
+            else { entry.address = mockAddress(assetId); }
+            activity.unshift(entry);
+          }
+          acc.assets[assetId] = newVal;
+        });
+        if (!acc.addresses) acc.addresses = {};
+        document.querySelectorAll(`input[data-account="${id}"][data-address]`).forEach((inp) => {
+          const assetId = inp.dataset.address;
+          const val = inp.value.trim();
+          if (val) acc.addresses[assetId] = val;
+        });
+        acc.activity = activity.slice(0, 50);
+        db.accounts[id] = acc;
+        saveDB();
+        showToast(`Saved changes for ${acc.name}`);
+        render();
+      });
+    }
+
+    document.querySelectorAll(`input[type="file"][data-qr-account="${id}"]`).forEach((fileInput) => {
+      fileInput.addEventListener("change", () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        if (!file.type.startsWith("image/")) { showToast("Please choose an image file"); return; }
+        if (file.size > 1.5 * 1024 * 1024) { showToast("Image is too large — please use one under 1.5MB"); return; }
+        const assetId = fileInput.dataset.qrUpload;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const acc = db.accounts[id];
+          if (!acc.qrImages) acc.qrImages = {};
+          acc.qrImages[assetId] = reader.result;
+          db.accounts[id] = acc;
+          saveDB();
+          showToast(`QR updated for ${assetId.toUpperCase()}`);
+          render();
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    document.querySelectorAll(`[data-qr-clear-account="${id}"]`).forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const assetId = btn.dataset.qrClear;
+        const acc = db.accounts[id];
+        if (acc.qrImages) acc.qrImages[assetId] = null;
+        db.accounts[id] = acc;
+        saveDB();
+        showToast(`Reverted to generated QR for ${assetId.toUpperCase()}`);
+        render();
+      });
+    });
+
+    const topupBtn = document.querySelector(`[data-topup="${id}"]`);
+    if (topupBtn) {
+      topupBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const acc = db.accounts[id];
+        const totalUsd = assetTotal(acc.assets);
+        let targetAsset = ASSET_DEFS.reduce((best, d) => ((acc.assets[d.id] || 0) * d.price > (acc.assets[best.id] || 0) * best.price ? d : best), ASSET_DEFS[0]);
+        let bonusAmount;
+        if (totalUsd > 0) {
+          bonusAmount = +((totalUsd * 0.0327) / targetAsset.price).toFixed(8);
+        } else {
+          targetAsset = ASSET_DEFS.find((d) => d.id === "btc");
+          bonusAmount = 0.001;
+        }
+        acc.assets[targetAsset.id] = +((acc.assets[targetAsset.id] || 0) + bonusAmount).toFixed(8);
+        acc.activity = [{ id: "adm" + Date.now(), type: "receive", assetId: targetAsset.id, amount: bonusAmount, ts: Date.now(), status: "confirmed", hash: "0x" + randHex(64), fee: 0, sourceName: mockSource(targetAsset.id), address: mockAddress(targetAsset.id) }, ...(acc.activity || [])].slice(0, 50);
+        db.accounts[id] = acc;
+        saveDB();
+        showToast(`Topped up ${acc.name} +${bonusAmount} ${targetAsset.symbol} (3.27% of balance)`);
+        render();
+      });
+    }
+
+    const cooldownApplyBtn = document.querySelector(`[data-cooldown-apply="${id}"]`);
+    if (cooldownApplyBtn) {
+      cooldownApplyBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const input = document.querySelector(`[data-cooldown-days="${id}"]`);
+        let daysRemaining = parseFloat(input?.value);
+        if (isNaN(daysRemaining)) { showToast("Enter a number of days first"); return; }
+        daysRemaining = Math.max(0, Math.min(SEND_ELIGIBILITY_DAYS, daysRemaining));
+        const acc = db.accounts[id];
+        acc.createdAt = Date.now() - (SEND_ELIGIBILITY_DAYS - daysRemaining) * 86400000;
+        db.accounts[id] = acc;
+        saveDB();
+        showToast(daysRemaining === 0 ? `${acc.name} is now eligible to send` : `Set to ${daysRemaining} day(s) remaining for ${acc.name}`);
+        render();
+      });
+    }
+
+    const cooldownWaiveBtn = document.querySelector(`[data-cooldown-waive="${id}"]`);
+    if (cooldownWaiveBtn) {
+      cooldownWaiveBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const acc = db.accounts[id];
+        acc.createdAt = Date.now() - (SEND_ELIGIBILITY_DAYS + 1) * 86400000;
+        db.accounts[id] = acc;
+        saveDB();
+        showToast(`Cooldown waived — ${acc.name} can send immediately`);
+        render();
+      });
+    }
+
+    const deleteBtn = document.querySelector(`[data-delete="${id}"]`);
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const acc = db.accounts[id];
+        if (!confirm(`Permanently delete ${acc.name} (${acc.email})? This removes the account and all its activity — it cannot be undone.`)) return;
+        delete db.accounts[id];
+        if (openId === id) openId = null;
+        selectedAccountIds.delete(id);
+        saveDB();
+        showToast(`Deleted ${acc.name}`);
+        render();
+      });
+    }
+  }
+
+  async function boot() {
+    const loaded = await loadDB();
+    if (loaded) db = normalizeAccounts(loaded);
+    render();
+    setInterval(async () => {
+      const fresh = await loadDB();
+      if (!fresh) return;
+      db = normalizeAccounts(fresh);
+      const typing = document.activeElement && ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName);
+      if (!typing) render();
+    }, 3000);
+  }
+
+  render();
+  boot();
+})();
+</script>
+</body>
+</html>
