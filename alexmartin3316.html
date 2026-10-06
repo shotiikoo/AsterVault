@@ -214,7 +214,7 @@ async function loadDB() {
       const res = await fetch("/api/db", { 
         cache: "no-store",
         headers: {
-          'x-admin-token': 'tavisqala'
+          'x-admin-token': adminToken
         }
       });
       if (!res.ok) return null;
@@ -228,17 +228,17 @@ async function loadDB() {
       method: 'PUT',
       headers: { 
           'Content-Type': 'application/json',
-          'x-admin-token': 'tavisqala'
+          'x-admin-token': adminToken
       },
       body: JSON.stringify(db)
     }).catch(() => {});
   }
 
-  const ADMIN_PASSWORD = "tavisqala";
+  let adminToken = sessionStorage.getItem("admin-token") || "";
   let db = { accounts: DEFAULT_ACCOUNTS() };
   let openId = null;
   let selectedAccountIds = new Set();
-  let unlocked = sessionStorage.getItem("admin-unlocked") === "1";
+  let unlocked = !!adminToken;
   let lockError = "";
   const root = document.getElementById("root");
 
@@ -264,15 +264,18 @@ async function loadDB() {
       </div>
     `;
     const input = document.getElementById("admin-pass-input");
-    const submit = () => {
-      if (input.value === ADMIN_PASSWORD) {
+    const submit = async () => {
+      adminToken = input.value;
+      const ok = await loadDB();
+      if (ok) {
+        db = normalizeAccounts(ok);
         unlocked = true; lockError = "";
-        sessionStorage.setItem("admin-unlocked", "1");
-        render();
+        sessionStorage.setItem("admin-token", adminToken);
       } else {
+        adminToken = ""; unlocked = false;
         lockError = "Incorrect password.";
-        render();
       }
+      render();
     };
     document.getElementById("admin-unlock-btn").addEventListener("click", submit);
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
@@ -694,10 +697,12 @@ async function loadDB() {
   }
 
   async function boot() {
-    const loaded = await loadDB();
+    const loaded = adminToken ? await loadDB() : null;
     if (loaded) db = normalizeAccounts(loaded);
+    else if (adminToken) { adminToken = ""; unlocked = false; sessionStorage.removeItem("admin-token"); }
     render();
     setInterval(async () => {
+      if (!adminToken) return;
       const fresh = await loadDB();
       if (!fresh) return;
       db = normalizeAccounts(fresh);
