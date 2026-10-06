@@ -49,6 +49,45 @@ function verifyAdminToken(req, res, next) {
   next();
 }
 
+// ---------------------------------------------------------
+// NEW: Public / User Authentication & Data Routes
+// ---------------------------------------------------------
+
+// User Sign-In route: matches existing accounts without losing data
+app.post("/api/login", (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: "Username and password are required." });
+  }
+
+  const db = readDB();
+  const account = db.accounts[username];
+
+  // Check if account exists and password matches
+  if (!account || account.password !== password) {
+    return res.status(401).json({ error: "Invalid username or password." });
+  }
+
+  // Return safe account data (excluding sensitive internal fields if needed)
+  res.json({ 
+    success: true, 
+    username: username,
+    balance: account.balance || 0,
+    // Include any other user properties needed by index.html
+  });
+});
+
+// Safe public route for checking account existence or basic stats if needed
+app.get("/api/public-stats", (req, res) => {
+  const db = readDB();
+  const accountCount = Object.keys(db.accounts).length;
+  res.json({ totalAccounts: accountCount });
+});
+
+// ---------------------------------------------------------
+// Existing Admin Routes
+// ---------------------------------------------------------
+
 // Read the whole database with valid admin token
 app.get("/api/db", verifyAdminToken, (req, res) => {
   res.json(readDB());
