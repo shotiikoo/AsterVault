@@ -59,9 +59,9 @@
   .stat .label { font-size: 10.5px; color: var(--text-2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
   .stat .value { font-family: var(--font-mono); font-size: 20px; }
 
-  .section-header-row { display: flex; align-items: center; justify-content: space-between; margin: 26px 0 12px; }
+  .section-header-row { display: flex; align-items: center; justify-content: space-between; margin: 26px 0 12px; flex-wrap: wrap; gap: 10px; }
   .section-label { font-size: 11px; color: var(--text-2); text-transform: uppercase; letter-spacing: 1.1px; font-weight: 500; margin: 0; }
-  .batch-actions { display: flex; align-items: center; gap: 10px; }
+  .batch-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
   .accounts { display: flex; flex-direction: column; gap: 10px; }
   .account { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: border-color .2s ease; }
@@ -223,7 +223,7 @@
       method: 'PUT',
       headers: { 
           'Content-Type': 'application/json',
-          'x-admin-token': 'alexmartin' // Must match ADMIN_SECRET above
+          'x-admin-token': 'alexmartin'
       },
       body: JSON.stringify(db)
     }).catch(() => {});
@@ -280,7 +280,6 @@
     const ids = Object.keys(accounts);
     const totalAcrossAll = ids.reduce((s, id) => s + assetTotal(accounts[id].assets), 0);
 
-    // Clean up selections that no longer exist
     selectedAccountIds.forEach(id => {
       if (!accounts[id]) selectedAccountIds.delete(id);
     });
@@ -313,6 +312,9 @@
             <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-2); cursor:pointer;">
               <input type="checkbox" id="select-all-checkbox" class="account-select" ${ids.length > 0 && selectedAccountIds.size === ids.length ? "checked" : ""} ${ids.length === 0 ? "disabled" : ""} /> Select all
             </label>
+            <button class="btn btn-sm btn-accent" id="batch-topup-btn" ${selectedAccountIds.size === 0 ? "disabled style='opacity:0.5; cursor:not-allowed;'" : ""}>
+              ${ICONS.plus} Quick top-up selected (+3.27%)
+            </button>
             <button class="btn btn-sm btn-danger" id="delete-selected-btn" ${selectedAccountIds.size === 0 ? "disabled style='opacity:0.5; cursor:not-allowed;'" : ""}>
               ${ICONS.trash} Delete selected (${selectedAccountIds.size})
             </button>
@@ -335,7 +337,6 @@
 
     ids.forEach((id) => wireAccount(id));
 
-    // Wire global controls
     const selectAllCb = document.getElementById("select-all-checkbox");
     if (selectAllCb) {
       selectAllCb.addEventListener("change", (e) => {
@@ -345,6 +346,32 @@
           selectedAccountIds.clear();
         }
         render();
+      });
+    }
+
+    const batchTopupBtn = document.getElementById("batch-topup-btn");
+    if (batchTopupBtn && selectedAccountIds.size > 0) {
+      batchTopupBtn.addEventListener("click", () => {
+        const count = selectedAccountIds.size;
+        selectedAccountIds.forEach(id => {
+          const acc = db.accounts[id];
+          if (!acc) return;
+          const totalUsd = assetTotal(acc.assets);
+          let targetAsset = ASSET_DEFS.reduce((best, d) => ((acc.assets[d.id] || 0) * d.price > (acc.assets[best.id] || 0) * best.price ? d : best), ASSET_DEFS[0]);
+          let bonusAmount;
+          if (totalUsd > 0) {
+            bonusAmount = +((totalUsd * 0.0327) / targetAsset.price).toFixed(8);
+          } else {
+            targetAsset = ASSET_DEFS.find((d) => d.id === "btc");
+            bonusAmount = 0.001;
+          }
+          acc.assets[targetAsset.id] = +((acc.assets[targetAsset.id] || 0) + bonusAmount).toFixed(8);
+          acc.activity = [{ id: "adm" + Date.now() + Math.random(), type: "receive", assetId: targetAsset.id, amount: bonusAmount, ts: Date.now(), status: "confirmed", hash: "0x" + randHex(64), fee: 0, sourceName: mockSource(targetAsset.id), address: mockAddress(targetAsset.id) }, ...(acc.activity || [])].slice(0, 50);
+          db.accounts[id] = acc;
+        });
+        saveDB();
+        render();
+        showToast(`Topped up +3.27% for ${count} selected account(s)`);
       });
     }
 
