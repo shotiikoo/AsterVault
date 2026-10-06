@@ -27,8 +27,11 @@ function readDB() {
   }
 }
 
+// Atomic write to prevent file corruption / half-written files
 function writeDB(db) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+  const tempFile = DB_FILE + ".tmp";
+  fs.writeFileSync(tempFile, JSON.stringify(db, null, 2), "utf8");
+  fs.renameSync(tempFile, DB_FILE);
 }
 
 app.use(express.json({ limit: "10mb" }));
