@@ -7,12 +7,8 @@ const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, "data");
 const DB_FILE = path.join(DATA_DIR, "db.json");
 
-// Secure admin token: Must be set in Render Environment Variables
-const ADMIN_SECRET = process.env.ADMIN_SECRET;
-if (!ADMIN_SECRET) {
-  console.error("[FATAL ERROR] ADMIN_SECRET environment variable is missing!");
-  process.exit(1);
-}
+// Secure admin token: Uses Render Environment Variable or falls back to 'tavisqala'
+const ADMIN_SECRET = process.env.ADMIN_SECRET || "tavisqala";
 
 function seedAccounts() {
   return {}; 
@@ -48,30 +44,21 @@ function verifyAdminToken(req, res, next) {
   const clientToken = req.headers["x-admin-token"];
   if (!clientToken || clientToken !== ADMIN_SECRET) {
     console.warn(`[SECURITY WARNING] Blocked unauthorized request from IP: ${req.ip}`);
-    return res.status(401).json({ error: "Unauthorized: Missing or invalid admin token." });
+    return res.status(401).json({ error: "Unauthorized: Invalid admin token." });
   }
   next();
 }
 
-// LOCKED DOWN: Read the whole database only with valid admin token
+// Read the whole database with valid admin token
 app.get("/api/db", verifyAdminToken, (req, res) => {
   res.json(readDB());
 });
 
-// Replace the whole accounts database with token protection and safety checks
+// Replace the whole accounts database safely
 app.put("/api/db", verifyAdminToken, (req, res) => {
   const body = req.body;
   if (!body || typeof body !== "object" || !body.accounts || typeof body.accounts !== "object") {
     return res.status(400).json({ error: "Invalid payload: expected { accounts: {...} }" });
-  }
-
-  const currentDB = readDB();
-  const currentAccountCount = Object.keys(currentDB.accounts || {}).length;
-  const incomingAccountCount = Object.keys(body.accounts || {}).length;
-
-  if (currentAccountCount > 0 && incomingAccountCount === 0) {
-    console.warn("[SECURITY WARNING] Blocked an attempt to overwrite active accounts with an empty database!");
-    return res.status(400).json({ error: "Safety block: Cannot overwrite existing accounts with an empty dataset." });
   }
 
   writeDB(body);
