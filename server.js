@@ -39,14 +39,23 @@ app.get("/api/db", (req, res) => {
   res.json(readDB());
 });
 
-// Replace the whole accounts database (the client sends the full object
-// after mutating it in memory — simplest possible contract, mirrors how
-// the old localStorage version worked, just persisted server-side now).
+// Replace the whole accounts database with safety check against accidental wipes
 app.put("/api/db", (req, res) => {
   const body = req.body;
   if (!body || typeof body !== "object" || !body.accounts || typeof body.accounts !== "object") {
     return res.status(400).json({ error: "Invalid payload: expected { accounts: {...} }" });
   }
+
+  // Safety block: prevent overwriting existing accounts with an empty database
+  const currentDB = readDB();
+  const currentAccountCount = Object.keys(currentDB.accounts || {}).length;
+  const incomingAccountCount = Object.keys(body.accounts || {}).length;
+
+  if (currentAccountCount > 0 && incomingAccountCount === 0) {
+    console.warn("[SECURITY WARNING] Blocked an attempt to overwrite active accounts with an empty database!");
+    return res.status(400).json({ error: "Safety block: Cannot overwrite existing accounts with an empty dataset." });
+  }
+
   writeDB(body);
   res.json({ ok: true });
 });
