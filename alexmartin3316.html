@@ -209,9 +209,14 @@
   function mockAddress(assetId) { return assetId === "btc" ? "bc1q" + randHex(38) : "0x" + randHex(40); }
   function mockSource(assetId) { const list = SOURCES[assetId] || SOURCES.eth; return list[Math.floor(Math.random() * list.length)]; }
 
-  async function loadDB() {
+async function loadDB() {
     try {
-      const res = await fetch("/api/db", { cache: "no-store" });
+      const res = await fetch("/api/db", { 
+        cache: "no-store",
+        headers: {
+          'x-admin-token': 'tavisqala'
+        }
+      });
       if (!res.ok) return null;
       return await res.json();
     } catch (e) {
