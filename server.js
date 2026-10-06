@@ -64,7 +64,19 @@ app.put("/api/db", verifyAdminToken, (req, res) => {
   writeDB(body);
   res.json({ ok: true });
 });
-
+// Diagnostic route to inspect raw disk file contents
+app.get("/api/debug-disk", (req, res) => {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const raw = fs.readFileSync(DB_FILE, "utf8");
+      res.json({ path: DB_FILE, exists: true, contentLength: raw.length, rawData: JSON.parse(raw) });
+    } else {
+      res.json({ path: DB_FILE, exists: false });
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 app.listen(PORT, () => {
   console.log(`Aster Vault server running on port ${PORT}`);
   console.log(`Data file: ${DB_FILE}`);
