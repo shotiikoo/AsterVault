@@ -399,9 +399,14 @@
      browser. Every device that opens this page talks to the same backend,
      so data created here is permanent and shared — not tied to one
      browser or one device. ---------------- */
-  async function loadDB() {
+  let authToken = null;
+  const authHeaders = () => ({ "Content-Type": "application/json", Authorization: "Bearer " + authToken });
+  // Loads only the signed-in user's own account (never the whole database).
+  async function loadMyAccount() {
+    if (!authToken) return null;
     try {
-      const res = await fetch("/api/db", { cache: "no-store" });
+      const res = await fetch("/api/me", { cache: "no-store", headers: authHeaders() });
+      if (res.status === 401) return { expired: true };
       if (!res.ok) return null;
       return await res.json();
     } catch (e) {
@@ -409,13 +414,19 @@
     }
   }
   function saveDB() {
-    // Fire-and-forget: the UI already reflects the change locally; this
-    // just persists it server-side in the background.
-    fetch("/api/db", {
+    // Fire-and-forget: persists only this user's own account in the background.
+    if (!authToken || !session) return;
+    const a = db.accounts[session.id];
+    if (!a) return;
+    fetch("/api/me", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(db),
+      headers: authHeaders(),
+      body: JSON.stringify({ assets: a.assets, activity: a.activity, lastStreakAt: a.lastStreakAt, referralCode: a.referralCode }),
     }).catch(() => {});
+  }
+  async function getSalt(email) {
+    const res = await fetch("/api/salt?id=" + encodeURIComponent(toAccountId(email)), { cache: "no-store" });
+    return res.json();
   }
 
   /* ---------------- state ---------------- */
@@ -469,57 +480,54 @@
   async function registerAndSignIn(email, name, password) {
     const cleanEmail = (email || "").trim();
     const id = toAccountId(cleanEmail);
-    if (db.accounts[id]) {
-      ui.error = "An account with this email already exists. Log in instead.";
-      ui.authStep = "form"; ui.authMode = "login";
-      render();
-      return;
-    }
     const salt = randHex(16);
     const passwordHash = await hashPassword(password, salt);
-    db.accounts[id] = {
-      ...freshAccount(name?.trim() || cleanEmail, cleanEmail),
-      passwordHash,
-      passwordSalt: salt,
-      createdAt: Date.now(),
-    };
     const usedRefCode = (ui.authRefCode || "").trim().toUpperCase() || incomingRefCode;
-    if (usedRefCode) {
-      const referrer = Object.values(db.accounts).find((a) => a.referralCode === usedRefCode && a !== db.accounts[id]);
-      if (referrer) {
-        referrer.referrals = referrer.referrals || [];
-        referrer.referrals.push({ name: name?.trim() || cleanEmail, ts: Date.now() });
-        db.accounts[id].referredBy = { name: referrer.name, code: usedRefCode };
+    try {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: cleanEmail, name: name?.trim() || cleanEmail, passwordHash, passwordSalt: salt, refCode: usedRefCode,
+          account: freshAccount(name?.trim() || cleanEmail, cleanEmail),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        ui.error = data.error || "Could not create the account. Try again.";
+        ui.authStep = "form"; ui.authMode = res.status === 409 ? "login" : "register";
+        render();
+        return;
       }
+      authToken = data.token;
+      db.accounts[data.id] = data.account;
+      completeSignIn(data.id, cleanEmail, data.account.name);
+    } catch (e) {
+      ui.error = "Can't reach the server. Try again."; ui.authStep = "form"; render();
     }
-    saveDB();
-    completeSignIn(id, cleanEmail, name?.trim() || cleanEmail);
   }
 
   // Logs in only if an account with this exact email already exists AND
   // the password matches its stored hash. Never creates an account.
   async function loginWithPassword(email, password) {
     const cleanEmail = (email || "").trim();
-    const id = toAccountId(cleanEmail);
-    const account = db.accounts[id];
-    if (!account) {
-      ui.error = "No account found for that email. Create one instead.";
-      render();
-      return;
+    try {
+      const { salt } = await getSalt(cleanEmail);
+      const passwordHash = await hashPassword(password, salt);
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: cleanEmail, passwordHash }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { ui.error = data.error || "Could not sign in."; render(); return; }
+      authToken = data.token;
+      db.accounts[data.id] = data.account;
+      ui.error = "";
+      completeSignIn(data.id, cleanEmail, data.account.name);
+    } catch (e) {
+      ui.error = "Can't reach the server. Try again."; render();
     }
-    if (!account.passwordHash) {
-      ui.error = "This account can't sign in this way. Contact support.";
-      render();
-      return;
-    }
-    const hash = await hashPassword(password, account.passwordSalt);
-    if (hash !== account.passwordHash) {
-      ui.error = "Incorrect password.";
-      render();
-      return;
-    }
-    ui.error = "";
-    completeSignIn(id, cleanEmail, account.name);
   }
 
   function sendFunds(assetId, amount, address) {
@@ -1126,7 +1134,7 @@
         else if (act === "copy-ref-code") { navigator.clipboard?.writeText(acc()?.referralCode || "").catch(() => {}); ui.refCodeCopied = true; render(); showToast("Code copied"); setTimeout(() => { ui.refCodeCopied = false; }, 1600); }
         else if (act === "copy-ref-link") { const link = `${window.location.origin}${window.location.pathname}?ref=${acc()?.referralCode || ""}`; navigator.clipboard?.writeText(link).catch(() => {}); ui.refLinkCopied = true; render(); showToast("Link copied"); setTimeout(() => { ui.refLinkCopied = false; }, 1600); }
         else if (act === "activity-filter") { ui.activityFilter = el.dataset.id; render(); }
-        else if (act === "sign-out") { session = null; ui.tab = "dashboard"; render(); }
+        else if (act === "sign-out") { session = null; authToken = null; db = { accounts: {} }; ui.tab = "dashboard"; render(); }
         else if (act === "auth-mode") { ui.authMode = el.dataset.mode; ui.authStep = "form"; ui.error = ""; render(); }
         else if (act === "toggle-pass") { ui.showPass = !ui.showPass; render(); }
         else if (act === "auth-submit") { submitAuth(); }
@@ -1147,7 +1155,7 @@
     liveBind("send-amount", (v) => (ui.sendAmount = v.replace(/[^0-9.]/g, "")));
   }
 
-  function submitAuth() {
+  async function submitAuth() {
     const email = ui.authEmail;
     const password = ui.authPassword;
     if (ui.authMode === "login") {
@@ -1161,10 +1169,10 @@
         ui.error = password !== confirm ? "Passwords don't match." : "Fill in every field — password needs 6+ characters.";
         render(); return;
       }
-      if (db.accounts[toAccountId(email)]) {
-        ui.error = "An account with this email already exists. Log in instead.";
-        render(); return;
-      }
+      try {
+        const info = await getSalt(email);
+        if (info.exists) { ui.error = "An account with this email already exists. Log in instead."; render(); return; }
+      } catch (e) { ui.error = "Can't reach the server. Try again."; render(); return; }
       ui.error = "";
       ui.seedPhraseWords = generateSeedPhrase();
       ui.authStep = "seed"; render();
@@ -1177,17 +1185,16 @@
      any other) show up here too. Skips re-rendering while you're actively
      typing so nothing gets wiped mid-keystroke. ---------------- */
   async function boot() {
-    const loaded = await loadDB();
-    if (loaded) db = loaded;
     dbReady = true;
     render();
     setInterval(async () => {
-      const fresh = await loadDB();
+      if (!session || !authToken) return;
+      const fresh = await loadMyAccount();
       if (!fresh) return;
-      db = fresh;
-      if (session && !db.accounts[session.id]) session = null;
+      if (fresh.expired) { session = null; authToken = null; db = { accounts: {} }; render(); return; }
+      db.accounts[session.id] = fresh.account;
       const typing = document.activeElement && ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName);
-      if (session && !typing) render();
+      if (!typing) render();
     }, 3000);
     // Live-tick the streak countdown — only re-renders while it's actually
     // visible (dashboard tab, cooldown active) so it never interrupts
