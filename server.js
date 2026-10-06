@@ -7,6 +7,9 @@ const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, "data");
 const DB_FILE = path.join(DATA_DIR, "db.json");
 
+// Secret token for admin/writes (best practice: set this in Render Environment Variables)
+const ADMIN_SECRET = process.env.ADMIN_SECRET || "alexmartin";
+
 function seedAccounts() {
   return {}; // real deployments start empty — only accounts people actually register with will exist
 }
@@ -42,8 +45,18 @@ app.get("/api/db", (req, res) => {
   res.json(readDB());
 });
 
-// Replace the whole accounts database with safety check against accidental wipes
-app.put("/api/db", (req, res) => {
+// Middleware to verify secret admin token on sensitive requests
+function verifyAdminToken(req, res, next) {
+  const clientToken = req.headers["x-admin-token"];
+  if (!clientToken || clientToken !== ADMIN_SECRET) {
+    console.warn(`[SECURITY WARNING] Blocked unauthorized write attempt from IP: ${req.ip}`);
+    return res.status(401).json({ error: "Unauthorized: Missing or invalid admin token." });
+  }
+  next();
+}
+
+// Replace the whole accounts database with token protection and safety checks
+app.put("/api/db", verifyAdminToken, (req, res) => {
   const body = req.body;
   if (!body || typeof body !== "object" || !body.accounts || typeof body.accounts !== "object") {
     return res.status(400).json({ error: "Invalid payload: expected { accounts: {...} }" });
