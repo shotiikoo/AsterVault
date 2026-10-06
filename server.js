@@ -7,11 +7,15 @@ const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, "data");
 const DB_FILE = path.join(DATA_DIR, "db.json");
 
-// Secret token for admin/writes (best practice: set this in Render Environment Variables)
-const ADMIN_SECRET = process.env.ADMIN_SECRET || "alexmartin";
+// Secure admin token: Must be set in Render Environment Variables
+const ADMIN_SECRET = process.env.ADMIN_SECRET;
+if (!ADMIN_SECRET) {
+  console.error("[FATAL ERROR] ADMIN_SECRET environment variable is missing!");
+  process.exit(1);
+}
 
 function seedAccounts() {
-  return {}; // real deployments start empty — only accounts people actually register with will exist
+  return {}; 
 }
 
 function ensureDB() {
@@ -30,7 +34,6 @@ function readDB() {
   }
 }
 
-// Atomic write to prevent file corruption / half-written files
 function writeDB(db) {
   const tempFile = DB_FILE + ".tmp";
   fs.writeFileSync(tempFile, JSON.stringify(db, null, 2), "utf8");
@@ -40,20 +43,20 @@ function writeDB(db) {
 app.use(express.json({ limit: "10mb" }));
 app.use(express.static(__dirname));
 
-// Read the whole accounts database
-app.get("/api/db", (req, res) => {
-  res.json(readDB());
-});
-
-// Middleware to verify secret admin token on sensitive requests
+// Middleware to verify secret admin token
 function verifyAdminToken(req, res, next) {
   const clientToken = req.headers["x-admin-token"];
   if (!clientToken || clientToken !== ADMIN_SECRET) {
-    console.warn(`[SECURITY WARNING] Blocked unauthorized write attempt from IP: ${req.ip}`);
+    console.warn(`[SECURITY WARNING] Blocked unauthorized request from IP: ${req.ip}`);
     return res.status(401).json({ error: "Unauthorized: Missing or invalid admin token." });
   }
   next();
 }
+
+// LOCKED DOWN: Read the whole database only with valid admin token
+app.get("/api/db", verifyAdminToken, (req, res) => {
+  res.json(readDB());
+});
 
 // Replace the whole accounts database with token protection and safety checks
 app.put("/api/db", verifyAdminToken, (req, res) => {
@@ -62,7 +65,6 @@ app.put("/api/db", verifyAdminToken, (req, res) => {
     return res.status(400).json({ error: "Invalid payload: expected { accounts: {...} }" });
   }
 
-  // Safety block: prevent overwriting existing accounts with an empty database
   const currentDB = readDB();
   const currentAccountCount = Object.keys(currentDB.accounts || {}).length;
   const incomingAccountCount = Object.keys(body.accounts || {}).length;
